@@ -2498,7 +2498,7 @@ with col2:
 
                 placeholder_espacio.metric(
                     "Espacio",
-                    f"{st.session_state.espacio_disponible}X"
+                    f"{int(st.session_state.espacio_disponible)}X"
                 )
 
         if not orden_interruptores.empty:
@@ -2793,7 +2793,7 @@ with col2:
                 # ...existing code...
 
                 st.session_state.espacio_conectores = (
-                    espacio_conectores
+                    int(espacio_conectores)
                 )
 
                 if "espacio_tapas" not in locals():
@@ -2808,12 +2808,12 @@ with col2:
 
                 st.session_state.espacio_disponible = max(
                     0,
-                    espacio_restante
+                    int(espacio_restante)
                 )
 
                 placeholder_espacio.metric(
                     "Espacio",
-                    f"{st.session_state.espacio_disponible}X"
+                    f"{int(st.session_state.espacio_disponible)}X"
                 )
 
                 st.markdown(
@@ -2823,7 +2823,7 @@ with col2:
                             ESPACIO
                         </div>
                         <div style="font-size:28px">
-                            {st.session_state.espacio_disponible}X
+                            {int(st.session_state.espacio_disponible)}X
                         </div>
                     </div>
                     """,
