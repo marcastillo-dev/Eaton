@@ -19,9 +19,22 @@ def _obtener_espacio_disponible(principal=None):
 
     capacidad = st.session_state.get("capacidad")
     altura = st.session_state.get("altura")
+    acometida = st.session_state.get("acometida")
 
     if not capacidad:
         return 0.0
+
+    espacio_total_override = (
+        50
+        if (
+            capacidad in ["2000 AMP", "3200 AMP"]
+            and acometida in [
+                "Chasis de Derivados",
+                "Secciones Vacías"
+            ]
+        )
+        else None
+    )
 
     return calcular_espacio_disponible(
         catalogo,
@@ -33,7 +46,8 @@ def _obtener_espacio_disponible(principal=None):
             st.session_state.get("interruptor_principal")
             if principal is None
             else principal
-        )
+        ),
+        espacio_total_override
     )
 
 def mostrar_productos(

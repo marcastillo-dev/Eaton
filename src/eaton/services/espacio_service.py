@@ -134,13 +134,18 @@ def calcular_espacio_disponible(
     altura,
     breakers,
     tapas,
-    principal
+    principal,
+    espacio_total_override=None
 ):
 
-    espacio_total = obtener_espacio_total(
-        catalogo,
-        capacidad,
-        altura
+    espacio_total = (
+        espacio_total_override
+        if espacio_total_override is not None
+        else obtener_espacio_total(
+            catalogo,
+            capacidad,
+            altura
+        )
     )
 
     espacio_usado = (

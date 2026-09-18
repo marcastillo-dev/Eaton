@@ -1,6 +1,10 @@
 import pandas as pd
 import streamlit as st
 from src.eaton.services.catalogo_service import CatalogoService
+from src.eaton.services.espacio_service import (
+    calcular_espacio_disponible,
+    obtener_espacio_total
+)
 from src.eaton.config.settings import ASSETS_DIR, CATALOGO, LOGO
 from src.eaton.ui.styles import cargar_estilos
 from src.eaton.ui.header import render_header
@@ -340,7 +344,10 @@ with col1:
 
                             marco_guardado = (
                                 st.session_state.orden_editando.get(
-                                    "marco"
+                                    "marco_principal",
+                                    st.session_state.orden_editando.get(
+                                        "marco"
+                                    )
                                 )
                             )
 
@@ -805,12 +812,27 @@ with col1:
 
                     else:
 
+                        indice_marco_principal = None
+
+                        if st.session_state.orden_editando:
+                            marco_principal_guardado = (
+                                st.session_state.orden_editando.get(
+                                    "marco_principal",
+                                    st.session_state.orden_editando.get(
+                                        "marco"
+                                    )
+                                )
+                            )
+
+                            if marco_principal_guardado == "PDG":
+                                indice_marco_principal = 0
+
                         marco = st.selectbox(
                             "Marco",
                             [
                                 "PDG"
                             ],
-                            index=None,
+                            index=indice_marco_principal,
                             key="marco",
                             placeholder="Selecciona un marco"
                         )
@@ -1017,12 +1039,27 @@ with col1:
 
                     else:
 
+                        indice_marco_principal = None
+
+                        if st.session_state.orden_editando:
+                            marco_principal_guardado = (
+                                st.session_state.orden_editando.get(
+                                    "marco_principal",
+                                    st.session_state.orden_editando.get(
+                                        "marco"
+                                    )
+                                )
+                            )
+
+                            if marco_principal_guardado == "PDG":
+                                indice_marco_principal = 0
+
                         marco = st.selectbox(
                             "Marco",
                             [
                                 "PDG"
                             ],
-                            index=None,
+                            index=indice_marco_principal,
                             key="marco",
                             placeholder="Selecciona un marco"
                         )
@@ -1953,17 +1990,9 @@ if st.session_state.orden_editando:
         .copy()
     )
 
-    orden_breakers = (
-        st.session_state.orden_editando["breakers"]
-        .copy()
-    )
+    orden_breakers = st.session_state.carrito_breakers.copy()
 
-    orden_tapas = (
-        st.session_state.orden_editando.get(
-            "tapas",
-            pd.DataFrame()
-        ).copy()
-    )
+    orden_tapas = st.session_state.carrito_tapas.copy()
 
     orden_interruptores = (
         st.session_state.orden_editando[
@@ -1981,6 +2010,7 @@ if st.session_state.orden_editando:
 if (
     "interruptores_izmx" in locals()
     and not interruptores_izmx.empty
+    and not st.session_state.orden_editando
 ):
 
     orden_interruptores = pd.concat(
@@ -1994,6 +2024,7 @@ if (
 if (
     "interruptor_lsig" in locals()
     and not interruptor_lsig.empty
+    and not st.session_state.orden_editando
 ):
 
     orden_interruptores = pd.concat(
@@ -2168,6 +2199,43 @@ with col2:
 
         st.session_state.espacio_disponible = espacio_disponible
 
+    if capacidad:
+
+        espacio_total_override = (
+            50
+            if (
+                capacidad in ["2000 AMP", "3200 AMP"]
+                and acometida in [
+                    "Chasis de Derivados",
+                    "Secciones Vacías"
+                ]
+            )
+            else None
+        )
+
+        espacio_total = (
+            espacio_total_override
+            if espacio_total_override is not None
+            else obtener_espacio_total(
+                catalogo,
+                capacidad,
+                altura
+            )
+        )
+
+        espacio_disponible = calcular_espacio_disponible(
+            catalogo,
+            capacidad,
+            altura,
+            st.session_state.carrito_breakers,
+            st.session_state.carrito_tapas,
+            st.session_state.interruptor_principal,
+            espacio_total_override
+        )
+
+        st.session_state.espacio_total = espacio_total
+        st.session_state.espacio_disponible = espacio_disponible
+
     if st.session_state.ordenes_guardadas:
     
         st.divider()
@@ -2180,6 +2248,12 @@ with col2:
             st.session_state.ordenes_guardadas,
             start=1
         ):
+
+            if (
+                st.session_state.get("orden_editando_indice")
+                == i - 1
+            ):
+                continue
 
             with st.expander(
                 f"Orden #{i} | ${orden['total']:,.0f}"
@@ -2214,7 +2288,15 @@ with col2:
                             "montaje",
                             "operacion",
                             "marco",
-                            "tipo"
+                            "tipo",
+                            "marco_derivado",
+                            "marco_derivado_600",
+                            "marco_derivado_800",
+                            "marco_derivado_1200",
+                            "tipo_derivado",
+                            "tipo_derivado_600",
+                            "tipo_derivado_800",
+                            "tipo_derivado_1200"
                         ]:
 
                             if key in st.session_state:
@@ -2248,9 +2330,19 @@ with col2:
                             for k, v in orden.items()
                         }
 
-                        st.session_state.ordenes_guardadas.pop(
-                            i - 1
-                        )
+                        if orden.get("capacidad") in [
+                            "600 AMP",
+                            "800 AMP",
+                            "1200 AMP"
+                        ]:
+                            st.session_state.orden_editando[
+                                "marco_principal"
+                            ] = orden.get(
+                                "marco_principal",
+                                orden.get("marco")
+                            )
+
+                        st.session_state.orden_editando_indice = i - 1
 
                         st.rerun()
 
@@ -2833,32 +2925,60 @@ with col2:
                 width="stretch"
             ):
 
-                st.session_state.ordenes_guardadas.append(
-                    {
-                        "tablero": orden_actual.copy(),
-                        "interruptor_principal": (st.session_state.interruptor_principal.copy()),
-                        "breakers": orden_breakers.copy(),
-                        "tapas": orden_tapas.copy(),
-                        "interruptores": orden_interruptores.copy(),
-                        "capacidad": capacidad,
-                        "altura": altura,
-                        "configuracion": configuracion,
-                        "acometida": acometida,
-                        "entrada_cables": entrada_cables,
-                        "incluir_medicion": incluir_medicion,
-                        "incluir_bus": incluir_bus,
-                        "incluir_sensor": incluir_sensor,
-                        "operacion": operacion,
-                        "lsig": lsig,
-                        "marco": marco,
-                        "tipo": tipo,
-                        "montaje": montaje,
-                        "espacio_total": espacio_total,
-                        "total": total
-                    }
+                orden_guardada = {
+                    "tablero": orden_actual.copy(),
+                    "interruptor_principal": (
+                        st.session_state.interruptor_principal.copy()
+                    ),
+                    "breakers": orden_breakers.copy(),
+                    "tapas": orden_tapas.copy(),
+                    "interruptores": orden_interruptores.copy(),
+                    "capacidad": capacidad,
+                    "altura": altura,
+                    "configuracion": configuracion,
+                    "acometida": acometida,
+                    "entrada_cables": entrada_cables,
+                    "incluir_medicion": incluir_medicion,
+                    "incluir_bus": incluir_bus,
+                    "incluir_sensor": incluir_sensor,
+                    "operacion": operacion,
+                    "lsig": lsig,
+                    "marco": marco,
+                    "marco_principal": (
+                        marco
+                        if capacidad in [
+                            "600 AMP",
+                            "800 AMP",
+                            "1200 AMP"
+                        ]
+                        else None
+                    ),
+                    "tipo": tipo,
+                    "montaje": montaje,
+                    "espacio_total": espacio_total,
+                    "total": total
+                }
+
+                indice_edicion = st.session_state.get(
+                    "orden_editando_indice"
                 )
 
+                if (
+                    indice_edicion is not None
+                    and indice_edicion < len(
+                        st.session_state.ordenes_guardadas
+                    )
+                ):
+                    st.session_state.ordenes_guardadas[
+                        indice_edicion
+                    ] = orden_guardada
+                else:
+                    st.session_state.ordenes_guardadas.append(
+                        orden_guardada
+                    )
+
                 st.session_state.orden_editando = None
+                st.session_state.orden_editando_indice = None
 
                 st.toast(
                     "✅ Orden guardada"
@@ -2875,6 +2995,7 @@ with col2:
             ):
 
                 st.session_state.orden_editando = None
+                st.session_state.orden_editando_indice = None
 
                 st.session_state["limpiar_todo"] = True
 
