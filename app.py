@@ -2765,8 +2765,6 @@ with col2:
                     """,
                     unsafe_allow_html=True
                 )
-        
-                st.divider()
 
         if "Cantidad" not in orden_mostrada.columns:
 
@@ -2815,6 +2813,8 @@ with col2:
             )
 
         total += total_conectores
+
+        st.divider()
 
         st.metric(
             "Total",

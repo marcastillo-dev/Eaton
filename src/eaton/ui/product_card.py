@@ -4,10 +4,37 @@ import streamlit as st
 import pandas as pd
 from src.eaton.services.catalogo_service import CatalogoService
 from src.eaton.config.settings import CATALOGO
+from src.eaton.services.espacio_service import (
+    calcular_espacio_disponible,
+    obtener_x_para_breaker,
+    _convertir_x
+)
 
 catalogo = CatalogoService(
     CATALOGO
 )
+
+
+def _obtener_espacio_disponible(principal=None):
+
+    capacidad = st.session_state.get("capacidad")
+    altura = st.session_state.get("altura")
+
+    if not capacidad:
+        return 0.0
+
+    return calcular_espacio_disponible(
+        catalogo,
+        capacidad,
+        altura,
+        st.session_state.get("carrito_breakers"),
+        st.session_state.get("carrito_tapas"),
+        (
+            st.session_state.get("interruptor_principal")
+            if principal is None
+            else principal
+        )
+    )
 
 def mostrar_productos(
     df_productos,
@@ -136,11 +163,34 @@ def mostrar_productos(
                         use_container_width=True
                     ):
 
-                        st.session_state.interruptor_principal = (
-                            producto.to_frame().T
+                        nuevo_principal = producto.to_frame().T
+                        espacio_disponible = (
+                            _obtener_espacio_disponible(
+                                pd.DataFrame()
+                            )
                         )
 
-                        st.rerun()
+                        x_principal = obtener_x_para_breaker(
+                            catalogo,
+                            st.session_state.capacidad,
+                            producto
+                        )
+
+                        if (
+                            x_principal is None
+                            or x_principal > espacio_disponible
+                        ):
+                            st.toast(
+                                f"⚠️ No hay espacio suficiente para este interruptor. "
+                                f"Necesitas {x_principal or 0}X y sólo quedan "
+                                f"{espacio_disponible}X"
+                            )
+                        else:
+                            st.session_state.interruptor_principal = (
+                                nuevo_principal
+                            )
+
+                            st.rerun()
 
                 else:
 
@@ -173,9 +223,8 @@ def mostrar_productos(
                             if prefijo == "tapas":
 
                                 try:
-                                    size_tapa = int(
-                                        str(producto["Size"])
-                                        .replace("X", "")
+                                    size_tapa = _convertir_x(
+                                        producto["Size"]
                                     )
                                 except (TypeError, ValueError):
                                     st.error(
@@ -183,18 +232,20 @@ def mostrar_productos(
                                     )
                                     continue
 
-                                espacio_requerido = (
-                                    size_tapa * cantidad
+                                espacio_disponible = (
+                                    _obtener_espacio_disponible()
                                 )
+
+                                espacio_requerido = size_tapa * cantidad
 
                                 if (
                                     espacio_requerido >
-                                    st.session_state.espacio_disponible
+                                    espacio_disponible
                                 ):
 
                                     st.toast(
                                         f"⚠️ Necesitas {espacio_requerido}X y sólo quedan "
-                                        f"{st.session_state.espacio_disponible}X"
+                                        f"{espacio_disponible}X"
                                     )
 
                                 else:
@@ -223,35 +274,21 @@ def mostrar_productos(
 
                             if prefijo == "breakers":
 
-                                kit = (
-                                    catalogo.obtener_kits_conectores_para_breaker(
-                                        "1600 AMP"
-                                        if st.session_state.capacidad == "600 AMP"
-                                        else (
-                                            "2000 AMP"
-                                            if st.session_state.capacidad in [
-                                                "800 AMP",
-                                                "1200 AMP"
-                                            ]
-                                            else st.session_state.capacidad
-                                        ),
-                                        producto["Marco"],
-                                        int(producto["# Polos"]),
-                                        int(producto["Corriente"])
-                                    )
+                                x_por_breaker = obtener_x_para_breaker(
+                                    catalogo,
+                                    st.session_state.capacidad,
+                                    producto
                                 )
 
-                                if not kit.empty:
+                                if x_por_breaker is not None:
 
                                     try:
-                                        x_por_breaker = int(
-                                            str(
-                                                kit.iloc[0]["Size"]
-                                            ).replace("X", "")
+                                        espacio_disponible = (
+                                            _obtener_espacio_disponible()
                                         )
-                                    except (TypeError, ValueError):
+                                    except (TypeError, ValueError, KeyError):
                                         st.error(
-                                            "El tamaño del kit de conectores no es válido."
+                                            "No se pudo calcular el espacio disponible."
                                         )
                                         continue
 
@@ -263,12 +300,12 @@ def mostrar_productos(
                                     if (
                                         espacio_requerido
                                         >
-                                        st.session_state.espacio_disponible
+                                        espacio_disponible
                                     ):
 
                                         st.toast(
                                             f"⚠️ Necesitas {espacio_requerido}X y sólo quedan "
-                                            f"{st.session_state.espacio_disponible}X"
+                                            f"{espacio_disponible}X"
                                         )
 
                                     else:

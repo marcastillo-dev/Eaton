@@ -524,6 +524,7 @@ class CatalogoService:
         if (
             marco == "PDG"
             and clasificacion is not None
+            and "Clasificacion" in candidatos.columns
         ):
 
             candidatos = candidatos[
