@@ -329,11 +329,10 @@ with col1:
 
                     else:
 
-                        marcos_principal = [
-                            "BZM",
-                            "PDG",
-                            "K"
-                        ]
+                        if altura == 73:
+                            marcos_principal = ["BZM", "PDG", "L"]
+                        else:
+                            marcos_principal = ["BZM", "PDG", "K"]
 
                         indice_marco = None
 
@@ -352,6 +351,8 @@ with col1:
                                         marco_guardado
                                     )
                                 )
+
+                        st.divider()
 
                         marco = st.selectbox(
                             "Marco",
@@ -585,10 +586,10 @@ with col1:
                                                 mostrar_boton=True
                                             )
 
-                        elif marco == "K":
+                        elif marco in ["K", "L"]:
 
                             breakers = (
-                                catalogo.obtener_hoja("K")
+                                catalogo.obtener_hoja(marco)
                                 .copy()
                             )
 
@@ -598,7 +599,7 @@ with col1:
                                 (breakers["Catalogo"] != "KDB3400L")
                             ]
 
-                            breakers["Marco"] = "K"
+                            breakers["Marco"] = marco
 
                             if (
                                 acometida == "Interruptor principal"
@@ -824,7 +825,7 @@ with col1:
                             breakers = breakers[
                                 (breakers["Tamano"] == 4)
                                 &
-                                (breakers["Corriente"] == 600)
+                                (breakers["Corriente"].isin([600, 800]))
                             ]
 
                             breakers["Marco"] = "PDG"
