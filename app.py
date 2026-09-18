@@ -1,15 +1,16 @@
 import pandas as pd
 import streamlit as st
-from services.catalogo_service import CatalogoService
-from ui.styles import cargar_estilos
-from ui.header import render_header
-from ui.product_card import (
+from src.eaton.services.catalogo_service import CatalogoService
+from src.eaton.config.settings import ASSETS_DIR, CATALOGO, LOGO
+from src.eaton.ui.styles import cargar_estilos
+from src.eaton.ui.header import render_header
+from src.eaton.ui.product_card import (
     mostrar_productos
 )
 
 st.set_page_config(
     page_title="EDS Orders",
-    page_icon="eaton_logo.png",
+    page_icon=str(LOGO),
     layout="wide"
 )
 
@@ -26,16 +27,12 @@ if "toast_breaker" in st.session_state:
     del st.session_state.toast_breaker
 
 catalogo = CatalogoService(
-    "data/catalogo_productos.xlsx"
+    CATALOGO
 )
 
 imagenes_marco = {
-    "BZM": "assets/BZM.png",
-    "PDG": "assets/PDG.png",
-    "F": "assets/F.png",
-    "J": "assets/J.png",
-    "K": "assets/K.png",
-    "L": "assets/L.png"
+    marco: str(ASSETS_DIR / f"{marco}.png")
+    for marco in ["BZM", "PDG", "F", "J", "K", "L"]
 }
 
 if "ordenes_guardadas" not in st.session_state:
@@ -83,7 +80,10 @@ col1, espacio, col2 = st.columns([2,0.25,1])
 
 with col1:
 
-    busqueda = st.text_input("Buscar producto")
+    busqueda = st.text_input(
+        "Buscar producto",
+        key="busqueda_productos"
+    )
 
     capacidades = sorted(
         catalogo.obtener_estructura()["Capacidad"]
@@ -236,7 +236,7 @@ with col1:
                     ]
                 ):
 
-                    st.divider()
+                    # st.divider()
 
                     st.session_state.espacio_disponible = (
                         catalogo.obtener_espacio_por_capacidad_y_altura(
@@ -432,14 +432,6 @@ with col1:
                                     )
 
                                     if tipo_derivado:
-
-                                        breakers = (
-                                            catalogo.obtener_breakers(
-                                                "1600 AMP",
-                                                marco_derivado,
-                                                tipo_derivado
-                                            )
-                                        )
 
                                         breakers = breakers[
                                             breakers["Corriente"] <= 400
@@ -1905,6 +1897,8 @@ with col1:
 
 orden_actual = pd.DataFrame()
 
+total = 0.0
+
 orden_breakers = pd.DataFrame()
 
 orden_tapas = pd.DataFrame()
@@ -1918,6 +1912,8 @@ espacio_total = 0
 espacio_tapas = 0
 
 espacio_conectores = 0
+
+total_conectores = 0.0
 
 if not st.session_state.carrito_breakers.empty:
 
@@ -2281,44 +2277,6 @@ with col2:
             "Estás editando una orden guardada"
         )
 
-        col_cfg1, col_cfg2 = st.columns(2)
-
-        with col_cfg1:
-
-            st.write(
-                "Capacidad:",
-                st.session_state.orden_editando.get(
-                    "capacidad",
-                    "-"
-                )
-            )
-
-            st.write(
-                "Configuración:",
-                st.session_state.orden_editando.get(
-                    "configuracion",
-                    "-"
-                )
-            )
-
-        with col_cfg2:
-
-            st.write(
-                "Acometida:",
-                st.session_state.orden_editando.get(
-                    "acometida",
-                    "-"
-                )
-            )
-
-            st.write(
-                "Montaje:",
-                st.session_state.orden_editando.get(
-                    "montaje",
-                    "-"
-                )
-            )
-
         st.divider()
 
     if orden_actual.empty:
@@ -2372,7 +2330,41 @@ with col2:
 
         principal_mostrado = pd.DataFrame()
 
+        multiplicador_breakers = 1.00
+
+        mostrar_factor_breakers = (
+            not orden_interruptores.empty
+            or not orden_breakers.empty
+            or (
+                capacidad in [
+                    "600 AMP",
+                    "800 AMP",
+                    "1200 AMP"
+                ]
+                and acometida == "Zapatas principales"
+            )
+        )
+
+        if mostrar_factor_breakers:
+
+            st.divider()
+
+            multiplicador_breakers = st.number_input(
+                "Factor breakers",
+                min_value=0.00,
+                max_value=1.00,
+                value=1.00,
+                step=0.01,
+                format="%.2f",
+                key="factor_breakers"
+            )
+
+            st.caption(
+                f"Precio aplicado: {multiplicador_breakers:.0%}"
+            )
+
         if not orden_principal.empty:
+
             st.divider()
 
             st.subheader(
@@ -2392,33 +2384,6 @@ with col2:
                 mostrar_boton=False
             )
 
-        orden_mostrada["Precio"] = (
-            orden_mostrada["Precio"]
-            * multiplicador_tablero
-        )
-
-        if "Cantidad" in orden_mostrada.columns:
-
-            orden_mostrada["Precio"] = (
-                orden_mostrada["Precio"]
-                * orden_mostrada["Cantidad"].fillna(1)
-            )
-
-        mostrar_factor_breakers = (
-            not orden_interruptores.empty
-            or not orden_breakers.empty
-            or (
-                capacidad in [
-                    "600 AMP",
-                    "800 AMP",
-                    "1200 AMP"
-                ]
-                and acometida == "Zapatas principales"
-            )
-        )
-
-        multiplicador_breakers = 1.00
-
         breakers_mostrados = pd.DataFrame()
 
         mostrar_seccion_derivados = (
@@ -2428,7 +2393,7 @@ with col2:
 
         if mostrar_seccion_derivados:
 
-            st.divider()
+            # st.divider()
 
             st.subheader(
                 "Derivados"
@@ -2442,22 +2407,6 @@ with col2:
                     "Espacio",
                     f"{st.session_state.espacio_disponible}X"
                 )
-
-        if mostrar_factor_breakers:
-
-            multiplicador_breakers = st.number_input(
-                "Factor breakers",
-                min_value=0.00,
-                max_value=1.00,
-                value=1.00,
-                step=0.01,
-                format="%.2f",
-                key="factor_breakers"
-            )
-
-            st.caption(
-                f"Precio aplicado: {multiplicador_breakers:.0%}"
-            )
 
         if not orden_interruptores.empty:
 
@@ -2637,6 +2586,12 @@ with col2:
                     )
                 )
 
+                if kits_conector.empty:
+                    st.warning(
+                        f"No existe un kit de conectores para {breaker['Catalogo']}."
+                    )
+                    continue
+
                 st.caption(
                     f"{breaker['Catalogo']} | "
                     f"{breaker['Corriente']}A | "
@@ -2716,6 +2671,13 @@ with col2:
                 else:
 
                     cantidad_kits = cantidad_breakers
+
+                total_conectores += (
+                    kit_seleccionado["Precio"]
+                    .fillna(0)
+                    .sum()
+                    * cantidad_kits
+                )
 
                 size_texto = str(
                     kit_seleccionado.iloc[0]["Size"]
@@ -2815,6 +2777,12 @@ with col2:
             .fillna(1)
         )
 
+        total += (
+            orden_mostrada["Precio"]
+            .fillna(0)
+            .sum()
+        )
+
         if not orden_principal.empty:
             total += (
                 principal_mostrado["Precio"]
@@ -2825,7 +2793,8 @@ with col2:
         if not orden_tapas.empty:
 
             total += (
-                orden_tapas["Precio"]
+                tapas_mostradas["Precio"]
+                .mul(tapas_mostradas["Cantidad"].fillna(1))
                 .fillna(0)
                 .sum()
             )
@@ -2841,8 +2810,11 @@ with col2:
 
             total += (
                 breakers_mostrados["Precio"]
+                .mul(breakers_mostrados["Cantidad"].fillna(1))
                 .sum()
             )
+
+        total += total_conectores
 
         st.metric(
             "Total",
