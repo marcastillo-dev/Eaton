@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.venv-build/
+build/
+dist/
+build-output.log
+source-test.json
