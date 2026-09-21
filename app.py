@@ -3,6 +3,7 @@ import streamlit as st
 from src.eaton.services.catalogo_service import CatalogoService
 from src.eaton.services.espacio_service import (
     calcular_espacio_disponible,
+    calcular_x_tapas,
     obtener_espacio_total
 )
 from src.eaton.config.settings import ASSETS_DIR, CATALOGO, LOGO
@@ -11,6 +12,7 @@ from src.eaton.ui.header import render_header
 from src.eaton.ui.product_card import (
     mostrar_productos
 )
+from src.eaton.services.export_service import generar_excel_ordenes
 
 st.set_page_config(
     page_title="EDS Orders",
@@ -1953,6 +1955,8 @@ espacio_conectores = 0
 
 total_conectores = 0.0
 
+selecciones_conectores = {}
+
 if not st.session_state.carrito_breakers.empty:
 
     orden_breakers = (
@@ -1976,6 +1980,8 @@ if not st.session_state.carrito_tapas.empty:
     orden_tapas = (
         st.session_state.carrito_tapas.copy()
     )
+
+espacio_tapas = calcular_x_tapas(orden_tapas)
 
 if st.session_state.orden_editando:
 
@@ -2116,6 +2122,8 @@ with col2:
         )
     )
 
+    espacio_principal = 0
+
     if mostrar_espacio:
 
         if acometida in [
@@ -2154,8 +2162,7 @@ with col2:
         espacio_usado = 0
         espacio_conectores = 0
         st.session_state.espacio_conectores = 0
-
-        espacio_principal = 0
+        st.session_state.espacio_tapas = int(espacio_tapas)
 
         if (
             capacidad in [
@@ -2244,6 +2251,14 @@ with col2:
         st.subheader(
             "Todas las Órdenes"
         )
+
+        opciones_exportacion = [
+            f"Orden #{indice}"
+            for indice in range(
+                1,
+                len(st.session_state.ordenes_guardadas) + 1
+            )
+        ]
 
         for i, orden in enumerate(
             st.session_state.ordenes_guardadas,
@@ -2360,6 +2375,73 @@ with col2:
                         )
 
                         st.rerun()
+
+        st.markdown(
+            """
+            <style>
+            .stMultiSelect [data-baseweb="tag"],
+            .stMultiSelect [data-baseweb="tag"] > div {
+                background: #005EB8 !important;
+                background-color: #005EB8 !important;
+                color: #FFFFFF !important;
+            }
+            .stMultiSelect [data-baseweb="tag"] span,
+            .stMultiSelect [data-baseweb="tag"] svg {
+                color: #FFFFFF !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+
+        with st.popover(
+            "Exportar",
+            use_container_width=True
+        ):
+
+            ordenes_seleccionadas = st.multiselect(
+                "Exportar",
+                opciones_exportacion,
+                placeholder="Selecciona una o varias órdenes",
+                key="ordenes_exportacion"
+            )
+
+            ordenes_exportar = []
+
+            for nombre in ordenes_seleccionadas:
+                indice = int(
+                    nombre.replace("Orden #", "")
+                ) - 1
+                orden = (
+                    st.session_state.ordenes_guardadas[
+                        indice
+                    ].copy()
+                )
+                orden["_numero_orden"] = indice + 1
+                ordenes_exportar.append(orden)
+
+            archivo_excel = (
+                generar_excel_ordenes(
+                    ordenes_exportar,
+                    catalogo,
+                    LOGO
+                )
+                if ordenes_exportar
+                else None
+            )
+
+            st.download_button(
+                "Exportar",
+                data=archivo_excel or b"",
+                file_name="ordenes_eaton.xlsx",
+                mime=(
+                    "application/vnd.openxmlformats-officedocument."
+                    "spreadsheetml.sheet"
+                ),
+                use_container_width=True,
+                disabled=not ordenes_exportar,
+                key="descargar_excel_ordenes"
+            )
 
     st.subheader(
         "Orden Actual"
@@ -2567,52 +2649,7 @@ with col2:
 
         if not orden_tapas.empty:
 
-            st.divider()
-
-            st.subheader(
-                "Tapas"
-            )
-
-            tapas_mostradas = (
-                orden_tapas
-                .groupby(
-                    [
-                        "Catalogo",
-                        "Descripcion",
-                        "Precio",
-                        "Size"
-                    ],
-                    as_index=False
-                )
-                .size()
-            )
-
-            tapas_mostradas.rename(
-                columns={
-                    "size": "Cantidad"
-                },
-                inplace=True
-            )
-
-            tapas_mostradas["Precio"] = (
-                tapas_mostradas["Precio"]
-                * multiplicador_tablero
-            )
-
-            for _, tapa in orden_tapas.iterrows():
-
-                size = tapa.get("Size")
-
-                if pd.notna(size):
-                    espacio_tapas += int(
-                        str(size).replace("X", "")
-                    )
-
-            mostrar_productos(
-                tapas_mostradas,
-                "tapas_orden",
-                mostrar_boton=True
-            )
+            espacio_tapas = calcular_x_tapas(orden_tapas)
 
         if not orden_breakers.empty:
         
@@ -2622,17 +2659,22 @@ with col2:
                 "Kits de Conectores"
             )
 
+            columnas_resumen = [
+                "Catalogo",
+                "Marco",
+                "Corriente",
+                "# Polos"
+            ]
+
+            if "Clasificacion" in orden_breakers.columns:
+                columnas_resumen.append("Clasificacion")
+
             breakers_resumen = (
                 orden_breakers
                 .groupby(
-                    [
-                        "Catalogo",
-                        "Marco",
-                        "Corriente",
-                        "# Polos",
-                        "Clasificacion"
-                    ],
-                    as_index=False
+                    columnas_resumen,
+                    as_index=False,
+                    dropna=False
                 )
                 .size()
             )
@@ -2712,6 +2754,10 @@ with col2:
                         label_visibility="collapsed"
                     )
 
+                    selecciones_conectores[
+                        str(breaker["Catalogo"])
+                    ] = seleccion
+
                     kit_seleccionado = (
                         kits_conector[
                             kits_conector["Ubicacion"]
@@ -2734,6 +2780,10 @@ with col2:
                 else:
 
                     seleccion = opciones[0]
+
+                    selecciones_conectores[
+                        str(breaker["Catalogo"])
+                    ] = seleccion
 
                     st.caption(
                         f"Tipo de conector: {seleccion}"
@@ -2793,74 +2843,107 @@ with col2:
 
                 espacio_conectores += espacio_utilizado
 
-                # ...existing code...
+        st.session_state.espacio_conectores = int(
+            espacio_conectores
+        )
 
-                st.session_state.espacio_conectores = (
-                    int(espacio_conectores)
-                )
+        espacio_restante = (
+            espacio_total
+            - espacio_principal
+            - espacio_conectores
+            - espacio_tapas
+        )
 
-                if "espacio_tapas" not in locals():
-                    espacio_tapas = 0
+        st.session_state.espacio_disponible = max(
+            0,
+            int(espacio_restante)
+        )
 
-                espacio_restante = (
-                    espacio_total
-                    - espacio_principal
-                    - espacio_conectores
-                    - espacio_tapas
-                )
+        if mostrar_espacio:
 
-                st.session_state.espacio_disponible = max(
-                    0,
-                    int(espacio_restante)
-                )
+            placeholder_espacio.metric(
+                "Espacio",
+                f"{int(st.session_state.espacio_disponible)}X"
+            )
 
-                placeholder_espacio.metric(
-                    "Espacio",
-                    f"{int(st.session_state.espacio_disponible)}X"
-                )
-
-                st.markdown(
-                    f"""
-                    <div class="espacio-flotante">
-                        <div style="font-size:12px">
-                            ESPACIO
-                        </div>
-                        <div style="font-size:28px">
-                            {int(st.session_state.espacio_disponible)}X
-                        </div>
+            st.markdown(
+                f"""
+                <div class="espacio-flotante">
+                    <div style="font-size:12px">
+                        ESPACIO
                     </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-            
-                st.markdown(
-                    """
-                    <style>
-            
-                    .espacio-flotante {
+                    <div style="font-size:28px">
+                        {int(st.session_state.espacio_disponible)}X
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            st.markdown(
+                """
+                <style>
+                .espacio-flotante {
                     position: fixed;
                     top: 90px;
                     right: 20px;
                     z-index: 9999;
-            
                     background-color: #005EB8;
                     color: white;
-            
                     padding: 14px 18px;
-            
                     border-radius: 12px;
-            
                     font-size: 18px;
                     text-align: center;
                     font-weight: 700;
-            
                     box-shadow: 0 4px 12px rgba(0,0,0,.30);
                 }
-            
-                    </style>
-                    """,
-                    unsafe_allow_html=True
+                </style>
+                """,
+                unsafe_allow_html=True
+            )
+
+        if not orden_tapas.empty:
+        
+            st.divider()
+
+            st.subheader(
+                "Tapas"
+            )
+
+            tapas_mostradas = (
+                orden_tapas
+                .groupby(
+                    [
+                        "Catalogo",
+                        "Descripcion",
+                        "Precio",
+                        "Size"
+                    ],
+                    as_index=False
                 )
+                .size()
+            )
+
+            tapas_mostradas.rename(
+                columns={
+                    "size": "Cantidad"
+                },
+                inplace=True
+            )
+
+            tapas_mostradas["Precio"] = (
+                tapas_mostradas["Precio"]
+                * multiplicador_tablero
+            )
+
+            espacio_tapas = calcular_x_tapas(orden_tapas)
+            st.session_state.espacio_tapas = int(espacio_tapas)
+
+            mostrar_productos(
+                tapas_mostradas,
+                "tapas_orden",
+                mostrar_boton=True
+            )
 
         if "Cantidad" not in orden_mostrada.columns:
 
@@ -2919,87 +3002,184 @@ with col2:
 
         st.divider()
 
-        col_guardar, col_nueva = st.columns(2)
+        def guardar_orden_actual():
 
-        with col_guardar:
+            orden_guardada = {
+                "tablero": orden_actual.copy(),
+                "interruptor_principal": (
+                    st.session_state.interruptor_principal.copy()
+                ),
+                "breakers": orden_breakers.copy(),
+                "tapas": orden_tapas.copy(),
+                "interruptores": orden_interruptores.copy(),
+                "capacidad": capacidad,
+                "altura": altura,
+                "configuracion": configuracion,
+                "acometida": acometida,
+                "entrada_cables": entrada_cables,
+                "incluir_medicion": incluir_medicion,
+                "incluir_bus": incluir_bus,
+                "incluir_sensor": incluir_sensor,
+                "operacion": operacion,
+                "lsig": lsig,
+                "marco": marco,
+                "marco_principal": (
+                    marco
+                    if capacidad in [
+                        "600 AMP",
+                        "800 AMP",
+                        "1200 AMP"
+                    ]
+                    else None
+                ),
+                "tipo": tipo,
+                "montaje": montaje,
+                "espacio_total": espacio_total,
+                "total": total,
+                "multiplicador_tablero": multiplicador_tablero,
+                "multiplicador_breakers": multiplicador_breakers,
+                "selecciones_conectores": selecciones_conectores.copy()
+            }
 
-            if st.button(
-                "Guardar orden",
-                width="stretch"
+            indice_edicion = st.session_state.get(
+                "orden_editando_indice"
+            )
+
+            if (
+                indice_edicion is not None
+                and indice_edicion < len(
+                    st.session_state.ordenes_guardadas
+                )
             ):
+                st.session_state.ordenes_guardadas[
+                    indice_edicion
+                ] = orden_guardada
+            else:
+                st.session_state.ordenes_guardadas.append(
+                    orden_guardada
+                )
 
-                orden_guardada = {
-                    "tablero": orden_actual.copy(),
-                    "interruptor_principal": (
-                        st.session_state.interruptor_principal.copy()
-                    ),
-                    "breakers": orden_breakers.copy(),
-                    "tapas": orden_tapas.copy(),
-                    "interruptores": orden_interruptores.copy(),
-                    "capacidad": capacidad,
-                    "altura": altura,
-                    "configuracion": configuracion,
-                    "acometida": acometida,
-                    "entrada_cables": entrada_cables,
-                    "incluir_medicion": incluir_medicion,
-                    "incluir_bus": incluir_bus,
-                    "incluir_sensor": incluir_sensor,
-                    "operacion": operacion,
-                    "lsig": lsig,
-                    "marco": marco,
-                    "marco_principal": (
-                        marco
-                        if capacidad in [
-                            "600 AMP",
-                            "800 AMP",
-                            "1200 AMP"
-                        ]
-                        else None
-                    ),
-                    "tipo": tipo,
-                    "montaje": montaje,
-                    "espacio_total": espacio_total,
-                    "total": total
+            st.session_state.orden_editando = None
+            st.session_state.orden_editando_indice = None
+
+            st.toast(
+                "✅ Orden guardada"
+            )
+
+        def limpiar_orden_actual():
+
+            st.session_state.orden_editando = None
+            st.session_state.orden_editando_indice = None
+            st.session_state["limpiar_todo"] = True
+            st.rerun()
+
+        hay_orden_en_proceso = (
+            not orden_actual.empty
+            or not orden_principal.empty
+            or not orden_breakers.empty
+            or not orden_tapas.empty
+            or not orden_interruptores.empty
+            or bool(st.session_state.get("orden_editando"))
+        )
+
+        if st.session_state.get("confirmar_nueva_orden"):
+
+            st.markdown(
+                """
+                <style>
+                .confirmacion-nueva-orden {
+                    background: rgba(13, 17, 23, 0.98);
+                    border: 1px solid rgba(94, 234, 212, 0.35);
+                    border-radius: 18px;
+                    padding: 1.4rem 1.5rem 1rem;
+                    box-shadow: 0 18px 45px rgba(0,0,0,0.45);
+                    max-width: 620px;
+                    margin: 1rem auto;
+                    text-align: center;
                 }
+                .confirmacion-nueva-orden h4 {
+                    color: #E5EEF9;
+                    margin: 0 0 0.7rem;
+                    font-size: 1.2rem;
+                    font-weight: 700;
+                }
+                .confirmacion-nueva-orden p {
+                    color: #B8C4D9;
+                    margin: 0 0 0.8rem;
+                    line-height: 1.5;
+                    font-size: 0.98rem;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True
+            )
 
-                indice_edicion = st.session_state.get(
-                    "orden_editando_indice"
-                )
+            st.markdown(
+                """
+                <div class="confirmacion-nueva-orden">
+                    <h4>Guardar orden antes de continuar</h4>
+                    <p>Hay una orden actual sin guardar. Puedes guardarla, descartarla o cancelar para seguir con la actual.</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-                if (
-                    indice_edicion is not None
-                    and indice_edicion < len(
-                        st.session_state.ordenes_guardadas
-                    )
+            col_cancelar, col_guardar, col_descartar = st.columns(
+                [1, 1.2, 1]
+            )
+
+            with col_cancelar:
+                if st.button(
+                    "Cancelar",
+                    use_container_width=True,
+                    type="secondary"
                 ):
-                    st.session_state.ordenes_guardadas[
-                        indice_edicion
-                    ] = orden_guardada
-                else:
-                    st.session_state.ordenes_guardadas.append(
-                        orden_guardada
-                    )
+                    st.session_state.confirmar_nueva_orden = False
+                    st.rerun()
 
-                st.session_state.orden_editando = None
-                st.session_state.orden_editando_indice = None
+            with col_guardar:
+                if st.button(
+                    "Guardar y nueva",
+                    use_container_width=True,
+                    type="primary"
+                ):
+                    guardar_orden_actual()
+                    st.session_state.confirmar_nueva_orden = False
+                    st.session_state["limpiar_todo"] = True
+                    st.rerun()
 
-                st.toast(
-                    "✅ Orden guardada"
-                )
+            with col_descartar:
+                if st.button(
+                    "Descartar",
+                    use_container_width=True,
+                    type="secondary"
+                ):
+                    st.session_state.confirmar_nueva_orden = False
+                    limpiar_orden_actual()
 
-                st.rerun()
+        else:
 
+            col_guardar, col_nueva = st.columns(2)
 
-        with col_nueva:
+            with col_guardar:
 
-            if st.button(
-                "Nueva orden",
-                width="stretch"
-            ):
+                if st.button(
+                    "Guardar orden",
+                    width="stretch"
+                ):
 
-                st.session_state.orden_editando = None
-                st.session_state.orden_editando_indice = None
+                    guardar_orden_actual()
+                    st.rerun()
 
-                st.session_state["limpiar_todo"] = True
+            with col_nueva:
 
-                st.rerun()
+                if st.button(
+                    "Nueva orden",
+                    width="stretch"
+                ):
+
+                    if hay_orden_en_proceso:
+                        st.session_state.confirmar_nueva_orden = True
+                        st.rerun()
+                    else:
+                        limpiar_orden_actual()

@@ -527,7 +527,7 @@ class CatalogoService:
             .apply(coincide_polos)
         ]
 
-        if marco == "PDG" and "Clasificacion" in df.columns:
+        if marco == "PDG" and "Clasificacion" in candidatos.columns:
 
             clasificacion_normalizada = (
                 str(clasificacion).strip()
