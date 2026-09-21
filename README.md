@@ -25,6 +25,20 @@ streamlit run app.py
 
 ## Ejecutable portable para Windows
 
+### Archivos del proyecto y limpieza
+
+- Para usar o compartir la aplicación basta con `dist/EatonEDS.exe`.
+- `src/eaton/` contiene el código de la aplicación. Los archivos `__init__.py`
+  forman parte de los paquetes, aunque estén vacíos.
+- `__pycache__/` y los archivos `.pyc` son cachés regenerables, no versiones
+  distintas del código. Los sufijos `310` y `314` indican la versión de Python.
+  Pueden reaparecer al ejecutar el código; `.gitignore` evita agregar cachés nuevos.
+- `build/`, `build-output.log` y `source-test.json` son archivos temporales que
+  se pueden borrar. No hacen falta para ejecutar el EXE.
+- `.venv-build/` es el entorno de compilación: sirve para generar nuevas versiones
+  sin reinstalar todo. No se comparte con los usuarios.
+- `docs/` contiene documentos originales de referencia, no cachés.
+
 El archivo que se comparte es **`dist/EatonEDS.exe`**. Incluye Python, las
 dependencias, el catálogo de `data/` y las imágenes de `assets/`. Usa
 `assets/eaton_logo.ico` como icono del ejecutable y de la ventana de inicio.
