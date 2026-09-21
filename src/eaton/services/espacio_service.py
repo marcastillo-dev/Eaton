@@ -1,6 +1,7 @@
 # services/espacio_service.py
 
 import pandas as pd
+from math import ceil
 
 
 def _convertir_x(valor):
@@ -67,6 +68,13 @@ def obtener_x_para_breaker(catalogo, capacidad, producto):
     if kits.empty:
         return None
 
+    tamaños = _obtener_tamaños_validos(kits)
+
+    return max(tamaños) if tamaños else None
+
+
+def _obtener_tamaños_validos(kits):
+
     tamaños = []
 
     for tamaño in kits["Size"].dropna():
@@ -75,25 +83,108 @@ def obtener_x_para_breaker(catalogo, capacidad, producto):
         except (TypeError, ValueError):
             continue
 
-    return max(tamaños) if tamaños else None
+    return tamaños
 
 
-def calcular_x_breakers(catalogo, capacidad, carrito):
+def _calcular_x_para_kits(kits, cantidad, ubicacion=None):
+
+    if kits.empty or cantidad <= 0:
+        return None
+
+    if ubicacion is not None:
+        kits = kits[
+            kits["Ubicacion"].astype(str).str.strip().str.casefold()
+            == str(ubicacion).strip().casefold()
+        ]
+
+    tamaños = _obtener_tamaños_validos(kits)
+
+    if not tamaños:
+        return None
+
+    tamaño = max(tamaños)
+    es_doble = (
+        not kits.empty
+        and kits["Ubicacion"].astype(str).str.strip().str.casefold().eq("doble").all()
+    )
+
+    if es_doble:
+        return ceil(cantidad / 2) * tamaño
+
+    return cantidad * tamaño
+
+
+def calcular_x_breaker(catalogo, capacidad, producto, cantidad=1, ubicacion=None):
+
+    marco = producto.get("Marco")
+    polos = int(float(producto["# Polos"]))
+    corriente = _convertir_corriente(producto["Corriente"])
+    clasificacion = producto.get("Clasificacion")
+
+    if pd.isna(clasificacion):
+        clasificacion = None
+
+    kits = catalogo.obtener_kits_conectores_para_breaker(
+        capacidad_de_conectores(capacidad),
+        marco,
+        polos,
+        corriente,
+        clasificacion
+    )
+
+    if kits.empty:
+        return None
+
+    if ubicacion is not None:
+        return _calcular_x_para_kits(kits, cantidad, ubicacion)
+
+    ubicaciones = (
+        kits["Ubicacion"].dropna().astype(str).str.strip().unique().tolist()
+    )
+
+    consumos = [
+        _calcular_x_para_kits(kits, cantidad, opcion)
+        for opcion in ubicaciones
+    ]
+    consumos = [consumo for consumo in consumos if consumo is not None]
+
+    return max(consumos) if consumos else None
+
+
+def calcular_x_breakers(catalogo, capacidad, carrito, ubicaciones=None):
 
     total = 0.0
 
     if carrito is None or carrito.empty:
         return total
 
-    for _, producto in carrito.iterrows():
-        tamaño = obtener_x_para_breaker(
+    for catalogo_producto, grupo in carrito.groupby("Catalogo", dropna=False):
+        producto = grupo.iloc[0]
+        cantidades = (
+            grupo["Cantidad"]
+            if "Cantidad" in grupo.columns
+            else pd.Series(1, index=grupo.index)
+        )
+        cantidad = int(pd.to_numeric(cantidades, errors="coerce").fillna(1).sum())
+        ubicacion = producto.get("Ubicacion")
+
+        if pd.isna(ubicacion):
+            ubicacion = (
+                ubicaciones.get(str(catalogo_producto))
+                if ubicaciones
+                else None
+            )
+
+        consumo = calcular_x_breaker(
             catalogo,
             capacidad,
-            producto
+            producto,
+            cantidad,
+            ubicacion
         )
 
-        if tamaño is not None:
-            total += tamaño
+        if consumo is not None:
+            total += consumo
 
     return total
 
@@ -119,10 +210,11 @@ def calcular_x_principal(catalogo, capacidad, principal):
     if principal is None or principal.empty:
         return 0.0
 
-    tamaño = obtener_x_para_breaker(
+    tamaño = calcular_x_breaker(
         catalogo,
         capacidad,
-        principal.iloc[0]
+        principal.iloc[0],
+        1
     )
 
     return tamaño or 0.0
@@ -135,7 +227,8 @@ def calcular_espacio_disponible(
     breakers,
     tapas,
     principal,
-    espacio_total_override=None
+    espacio_total_override=None,
+    ubicaciones=None
 ):
 
     espacio_total = (
@@ -149,7 +242,7 @@ def calcular_espacio_disponible(
     )
 
     espacio_usado = (
-        calcular_x_breakers(catalogo, capacidad, breakers)
+        calcular_x_breakers(catalogo, capacidad, breakers, ubicaciones)
         + calcular_x_tapas(tapas)
         + calcular_x_principal(catalogo, capacidad, principal)
     )

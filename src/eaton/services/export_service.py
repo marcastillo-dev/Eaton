@@ -165,6 +165,47 @@ def _agregar_seccion(worksheet, filas, nombre, fila, formatos):
     return fila + 1
 
 
+def _agrupar_filas(filas):
+
+    if not filas:
+        return []
+
+    resumen = {}
+
+    for item in filas:
+        clave = (
+            item.get("Catalogo", ""),
+            item.get("Descripcion", "")
+        )
+        unidades = _numero(item.get("Unidades"))
+        subtotal = _numero(item.get("Subtotal"))
+        acumulado = resumen.setdefault(
+            clave,
+            {"Unidades": 0.0, "Subtotal": 0.0}
+        )
+        acumulado["Unidades"] += unidades
+        acumulado["Subtotal"] += subtotal
+
+    filas_resumen = []
+
+    for (catalogo, descripcion), valores in resumen.items():
+        unidades = valores["Unidades"]
+        subtotal = valores["Subtotal"]
+        filas_resumen.append({
+            "Catalogo": catalogo,
+            "Descripcion": descripcion,
+            "Unidades": unidades,
+            "Precio Unitario": (
+                subtotal / unidades
+                if unidades
+                else 0
+            ),
+            "Subtotal": subtotal
+        })
+
+    return filas_resumen
+
+
 def generar_excel_ordenes(ordenes, catalogo, logo):
 
     output = BytesIO()
@@ -222,9 +263,11 @@ def generar_excel_ordenes(ordenes, catalogo, logo):
             })
         }
 
+        filas_resumen = []
+
         for indice, orden in enumerate(ordenes, start=1):
             numero_orden = orden.get("_numero_orden", indice)
-            nombre_hoja = f"Orden #{numero_orden}"
+            nombre_hoja = f"Partida #{numero_orden}"
             worksheet = workbook.add_worksheet(nombre_hoja)
             writer.sheets[nombre_hoja] = worksheet
             worksheet.hide_gridlines(2)
@@ -310,6 +353,7 @@ def generar_excel_ordenes(ordenes, catalogo, logo):
             total_calculado = 0
 
             for nombre, filas in secciones:
+                filas_resumen.extend(filas)
                 fila = _agregar_seccion(
                     worksheet,
                     filas,
@@ -324,6 +368,50 @@ def generar_excel_ordenes(ordenes, catalogo, logo):
             fila += 1
             worksheet.write(fila, 4, "Total", formatos["total_label"])
             worksheet.write(fila, 5, total_calculado, formatos["total"])
+
+        nombre_hoja = "Resumen"
+        worksheet = workbook.add_worksheet(nombre_hoja)
+        writer.sheets[nombre_hoja] = worksheet
+        worksheet.hide_gridlines(2)
+        worksheet.set_column("A:A", 10)
+        worksheet.set_column("B:B", 22)
+        worksheet.set_column("C:C", 52)
+        worksheet.set_column("D:D", 16)
+        worksheet.set_column("E:F", 18)
+        worksheet.set_row(0, 40)
+
+        if logo.is_file():
+            worksheet.insert_image(
+                "A1",
+                str(logo),
+                {
+                    "x_scale": 0.075,
+                    "y_scale": 0.075,
+                    "x_offset": 8,
+                    "y_offset": 2
+                }
+            )
+
+        worksheet.merge_range(
+            "C2:F2",
+            nombre_hoja,
+            formatos["title"]
+        )
+
+        filas_agrupadas = _agrupar_filas(filas_resumen)
+        fila = _agregar_seccion(
+            worksheet,
+            filas_agrupadas,
+            "Componentes",
+            3,
+            formatos
+        )
+        total_resumen = sum(
+            item["Subtotal"] for item in filas_agrupadas
+        )
+        fila += 1
+        worksheet.write(fila, 4, "Total", formatos["total_label"])
+        worksheet.write(fila, 5, total_resumen, formatos["total"])
 
     return output.getvalue()
 
@@ -352,7 +440,7 @@ def generar_excel(carrito, descuento_factor):
         df_export.to_excel(
             writer,
             index=False,
-            sheet_name="Orden"
+            sheet_name="Partida"
         )
 
     return output.getvalue()

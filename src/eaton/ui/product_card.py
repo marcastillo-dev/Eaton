@@ -6,7 +6,7 @@ from src.eaton.services.catalogo_service import CatalogoService
 from src.eaton.config.settings import CATALOGO
 from src.eaton.services.espacio_service import (
     calcular_espacio_disponible,
-    obtener_x_para_breaker,
+    calcular_x_breaker,
     _convertir_x
 )
 
@@ -47,7 +47,8 @@ def _obtener_espacio_disponible(principal=None):
             if principal is None
             else principal
         ),
-        espacio_total_override
+        espacio_total_override,
+        st.session_state.get("selecciones_conectores", {})
     )
 
 def mostrar_productos(
@@ -184,10 +185,11 @@ def mostrar_productos(
                             )
                         )
 
-                        x_principal = obtener_x_para_breaker(
+                        x_principal = calcular_x_breaker(
                             catalogo,
                             st.session_state.capacidad,
-                            producto
+                            producto,
+                            1
                         )
 
                         if (
@@ -288,10 +290,11 @@ def mostrar_productos(
 
                             if prefijo == "breakers":
 
-                                x_por_breaker = obtener_x_para_breaker(
+                                x_por_breaker = calcular_x_breaker(
                                     catalogo,
                                     st.session_state.capacidad,
-                                    producto
+                                    producto,
+                                    cantidad
                                 )
 
                                 if x_por_breaker is not None:
@@ -306,10 +309,7 @@ def mostrar_productos(
                                         )
                                         continue
 
-                                    espacio_requerido = (
-                                        x_por_breaker
-                                        * cantidad
-                                    )
+                                    espacio_requerido = x_por_breaker
 
                                     if (
                                         espacio_requerido

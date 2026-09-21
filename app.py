@@ -3,7 +3,9 @@ import streamlit as st
 from src.eaton.services.catalogo_service import CatalogoService
 from src.eaton.services.espacio_service import (
     calcular_espacio_disponible,
+    calcular_x_breakers,
     calcular_x_tapas,
+    calcular_x_principal,
     obtener_espacio_total
 )
 from src.eaton.config.settings import (
@@ -73,6 +75,10 @@ if "orden_guardada_actual" not in st.session_state:
 if "interruptor_principal" not in st.session_state:
 
     st.session_state.interruptor_principal = pd.DataFrame()
+
+if "selecciones_conectores" not in st.session_state:
+
+    st.session_state.selecciones_conectores = {}
 
 if st.session_state.get("limpiar_todo", False):
 
@@ -1964,7 +1970,9 @@ espacio_conectores = 0
 
 total_conectores = 0.0
 
-selecciones_conectores = {}
+selecciones_conectores = dict(
+    st.session_state.get("selecciones_conectores", {})
+)
 
 if not st.session_state.carrito_breakers.empty:
 
@@ -2182,27 +2190,11 @@ with col2:
             and not st.session_state.interruptor_principal.empty
         ):
 
-            principal = (
-                st.session_state.interruptor_principal.iloc[0]
+            espacio_principal = calcular_x_principal(
+                catalogo,
+                capacidad,
+                st.session_state.interruptor_principal
             )
-
-            kit_principal = (
-                catalogo.obtener_kits_conectores_para_breaker(
-                    capacidad,
-                    principal["Marco"],
-                    int(principal["# Polos"]),
-                    int(principal["Corriente"]),
-                    principal.get("Clasificacion")
-                )
-            )
-
-            if not kit_principal.empty:
-
-                espacio_principal = int(
-                    str(
-                        kit_principal.iloc[0]["Size"]
-                    ).replace("X", "")
-                )
             
         espacio_disponible = (
             espacio_total
@@ -2247,7 +2239,8 @@ with col2:
             st.session_state.carrito_breakers,
             st.session_state.carrito_tapas,
             st.session_state.interruptor_principal,
-            espacio_total_override
+            espacio_total_override,
+            selecciones_conectores
         )
 
         st.session_state.espacio_total = espacio_total
@@ -2260,14 +2253,6 @@ with col2:
         st.subheader(
             "Todas las Órdenes"
         )
-
-        opciones_exportacion = [
-            f"Orden #{indice}"
-            for indice in range(
-                1,
-                len(st.session_state.ordenes_guardadas) + 1
-            )
-        ]
 
         for i, orden in enumerate(
             st.session_state.ordenes_guardadas,
@@ -2355,6 +2340,10 @@ with col2:
                             for k, v in orden.items()
                         }
 
+                        st.session_state.selecciones_conectores = dict(
+                            orden.get("selecciones_conectores", {})
+                        )
+
                         st.session_state.orden_guardada_actual = {
                             k: (
                                 v.copy()
@@ -2417,19 +2406,22 @@ with col2:
             use_container_width=True
         ):
 
-            ordenes_seleccionadas = st.multiselect(
-                "Exportar",
-                opciones_exportacion,
-                placeholder="Selecciona una o varias órdenes",
-                key="ordenes_exportacion"
-            )
+            ordenes_seleccionadas = []
+
+            for indice, orden in enumerate(
+                st.session_state.ordenes_guardadas,
+                start=1
+            ):
+
+                if st.checkbox(
+                    f"Orden #{indice} | ${orden.get('total', 0):,.0f}",
+                    key=f"seleccionar_exportacion_{indice}"
+                ):
+                    ordenes_seleccionadas.append(indice - 1)
 
             ordenes_exportar = []
 
-            for nombre in ordenes_seleccionadas:
-                indice = int(
-                    nombre.replace("Orden #", "")
-                ) - 1
+            for indice in ordenes_seleccionadas:
                 orden = (
                     st.session_state.ordenes_guardadas[
                         indice
@@ -2803,6 +2795,9 @@ with col2:
                     selecciones_conectores[
                         str(breaker["Catalogo"])
                     ] = seleccion
+                    st.session_state.selecciones_conectores = (
+                        selecciones_conectores.copy()
+                    )
 
                     kit_seleccionado = (
                         kits_conector[
@@ -2830,6 +2825,9 @@ with col2:
                     selecciones_conectores[
                         str(breaker["Catalogo"])
                     ] = seleccion
+                    st.session_state.selecciones_conectores = (
+                        selecciones_conectores.copy()
+                    )
 
                     st.caption(
                         f"Tipo de conector: {seleccion}"
@@ -2888,6 +2886,19 @@ with col2:
                 )
 
                 espacio_conectores += espacio_utilizado
+
+        espacio_principal = calcular_x_principal(
+            catalogo,
+            capacidad,
+            st.session_state.interruptor_principal
+        )
+
+        espacio_conectores = calcular_x_breakers(
+            catalogo,
+            capacidad,
+            orden_breakers,
+            selecciones_conectores
+        )
 
         st.session_state.espacio_conectores = int(
             espacio_conectores
