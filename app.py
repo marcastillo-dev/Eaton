@@ -6,7 +6,12 @@ from src.eaton.services.espacio_service import (
     calcular_x_tapas,
     obtener_espacio_total
 )
-from src.eaton.config.settings import ASSETS_DIR, CATALOGO, LOGO
+from src.eaton.config.settings import (
+    ASSETS_DIR,
+    CATALOGO,
+    LOGO,
+    LOGO_ICON
+)
 from src.eaton.ui.styles import cargar_estilos
 from src.eaton.ui.header import render_header
 from src.eaton.ui.product_card import (
@@ -16,7 +21,7 @@ from src.eaton.services.export_service import generar_excel_ordenes
 
 st.set_page_config(
     page_title="EDS Orders",
-    page_icon=str(LOGO),
+    page_icon=str(LOGO_ICON),
     layout="wide"
 )
 
@@ -60,6 +65,10 @@ if "espacio_disponible" not in st.session_state:
 if "orden_editando" not in st.session_state:
 
     st.session_state.orden_editando = None
+
+if "orden_guardada_actual" not in st.session_state:
+
+    st.session_state.orden_guardada_actual = None
 
 if "interruptor_principal" not in st.session_state:
 
@@ -2346,6 +2355,15 @@ with col2:
                             for k, v in orden.items()
                         }
 
+                        st.session_state.orden_guardada_actual = {
+                            k: (
+                                v.copy()
+                                if isinstance(v, pd.DataFrame)
+                                else v
+                            )
+                            for k, v in orden.items()
+                        }
+
                         if orden.get("capacidad") in [
                             "600 AMP",
                             "800 AMP",
@@ -2433,7 +2451,7 @@ with col2:
             st.download_button(
                 "Exportar",
                 data=archivo_excel or b"",
-                file_name="ordenes_eaton.xlsx",
+                file_name="ordenes_EDS_eaton.xlsx",
                 mime=(
                     "application/vnd.openxmlformats-officedocument."
                     "spreadsheetml.sheet"
@@ -2506,7 +2524,10 @@ with col2:
 
         principal_mostrado = pd.DataFrame()
 
-        multiplicador_breakers = 1.00
+        multiplicador_breakers = st.session_state.get(
+            "factor_breakers",
+            1.00
+        )
 
         mostrar_factor_breakers = (
             not orden_interruptores.empty
@@ -2521,7 +2542,12 @@ with col2:
             )
         )
 
-        if mostrar_factor_breakers:
+        mostrar_factor_antes_principal = (
+            mostrar_factor_breakers
+            and orden_principal.empty
+        )
+
+        if mostrar_factor_antes_principal:
 
             st.divider()
 
@@ -2559,6 +2585,26 @@ with col2:
                 "orden",
                 mostrar_boton=False
             )
+
+            if mostrar_factor_breakers:
+
+                st.divider()
+
+                multiplicador_breakers = st.number_input(
+                    "Factor breakers",
+                    min_value=0.00,
+                    max_value=1.00,
+                    value=float(multiplicador_breakers),
+                    step=0.01,
+                    format="%.2f",
+                    key="factor_breakers"
+                )
+
+                st.caption(
+                    f"Precio aplicado: {multiplicador_breakers:.0%}"
+                )
+
+            st.divider()
 
         breakers_mostrados = pd.DataFrame()
 
@@ -3002,9 +3048,9 @@ with col2:
 
         st.divider()
 
-        def guardar_orden_actual():
+        def construir_orden_actual():
 
-            orden_guardada = {
+            return {
                 "tablero": orden_actual.copy(),
                 "interruptor_principal": (
                     st.session_state.interruptor_principal.copy()
@@ -3041,6 +3087,76 @@ with col2:
                 "selecciones_conectores": selecciones_conectores.copy()
             }
 
+        def ordenes_iguales(orden_a, orden_b):
+
+            claves = set(orden_a) | set(orden_b)
+
+            for clave in claves:
+
+                if clave in ["_numero_orden", "total"]:
+                    continue
+
+                if clave in [
+                    "multiplicador_tablero",
+                    "multiplicador_breakers"
+                ]:
+                    valor_a = orden_a.get(clave, 1.0)
+                    valor_b = orden_b.get(clave, 1.0)
+                elif clave == "selecciones_conectores":
+                    valor_a = orden_a.get(clave, {})
+                    valor_b = orden_b.get(clave, {})
+                else:
+                    valor_a = orden_a.get(clave)
+                    valor_b = orden_b.get(clave)
+
+                if isinstance(valor_a, pd.DataFrame) or isinstance(
+                    valor_b,
+                    pd.DataFrame
+                ):
+
+                    if not isinstance(valor_a, pd.DataFrame) or not isinstance(
+                        valor_b,
+                        pd.DataFrame
+                    ):
+                        return False
+
+                    try:
+                        pd.testing.assert_frame_equal(
+                            valor_a.reset_index(drop=True),
+                            valor_b.reset_index(drop=True),
+                            check_dtype=False,
+                            check_like=True
+                        )
+                    except AssertionError:
+                        return False
+
+                elif valor_a != valor_b:
+                    return False
+
+            return True
+
+        def orden_actual_esta_guardada():
+
+            orden_guardada_actual = (
+                st.session_state.get(
+                    "orden_guardada_actual"
+                )
+            )
+
+            if orden_guardada_actual is None:
+                return False
+
+            orden_actual_snapshot = construir_orden_actual()
+
+            return ordenes_iguales(
+                orden_actual_snapshot,
+                orden_guardada_actual
+            )
+
+        def guardar_orden_actual():
+
+            orden_guardada = construir_orden_actual()
+
             indice_edicion = st.session_state.get(
                 "orden_editando_indice"
             )
@@ -3054,6 +3170,10 @@ with col2:
                 st.session_state.ordenes_guardadas[
                     indice_edicion
                 ] = orden_guardada
+            elif orden_actual_esta_guardada():
+                st.toast(
+                    "ℹ️ Esta orden ya estaba guardada"
+                )
             else:
                 st.session_state.ordenes_guardadas.append(
                     orden_guardada
@@ -3061,6 +3181,14 @@ with col2:
 
             st.session_state.orden_editando = None
             st.session_state.orden_editando_indice = None
+            st.session_state.orden_guardada_actual = {
+                k: (
+                    v.copy()
+                    if isinstance(v, pd.DataFrame)
+                    else v
+                )
+                for k, v in orden_guardada.items()
+            }
 
             st.toast(
                 "✅ Orden guardada"
@@ -3073,14 +3201,14 @@ with col2:
             st.session_state["limpiar_todo"] = True
             st.rerun()
 
-        hay_orden_en_proceso = (
+        hay_cambios_sin_guardar = (
             not orden_actual.empty
             or not orden_principal.empty
             or not orden_breakers.empty
             or not orden_tapas.empty
             or not orden_interruptores.empty
             or bool(st.session_state.get("orden_editando"))
-        )
+        ) and not orden_actual_esta_guardada()
 
         if st.session_state.get("confirmar_nueva_orden"):
 
@@ -3178,7 +3306,7 @@ with col2:
                     width="stretch"
                 ):
 
-                    if hay_orden_en_proceso:
+                    if hay_cambios_sin_guardar:
                         st.session_state.confirmar_nueva_orden = True
                         st.rerun()
                     else:

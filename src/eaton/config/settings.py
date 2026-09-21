@@ -10,4 +10,5 @@ ASSETS_DIR = BASE_DIR / "assets"
 DATA_DIR = BASE_DIR / "data"
 
 LOGO = ASSETS_DIR / "eaton_logo.png"
+LOGO_ICON = ASSETS_DIR / "eaton_icon.png"
 CATALOGO = DATA_DIR / "catalogo_productos.xlsx"
