@@ -44,7 +44,22 @@ def self_test(output):
     sys.path.insert(0, str(ROOT))
     catalog = CatalogoService(CATALOGO)
     assert catalog.hojas
-    for name in ("eaton_logo.ico", "eaton_logo.png", "BZM.png", "PDG.png", "F.png", "J.png", "K.png", "L.png"):
+    for name in (
+        "eaton_logo.ico",
+        "eaton_logo.png",
+        "BZM_black.png",
+        "BZM_white.png",
+        "PDG_black.png",
+        "PDG_white.png",
+        "F_black.png",
+        "F_white.png",
+        "J_black.png",
+        "J_white.png",
+        "K_black.png",
+        "K_white.png",
+        "L_black.png",
+        "L_white.png"
+    ):
         assert (ASSETS_DIR / name).is_file(), name
     app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=60).run()
     assert not app.exception, str(app.exception)

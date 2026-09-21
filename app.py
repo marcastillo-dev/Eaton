@@ -15,6 +15,7 @@ from src.eaton.config.settings import (
     LOGO_ICON
 )
 from src.eaton.ui.styles import cargar_estilos
+from src.eaton.ui.styles import mostrar_imagen_marco
 from src.eaton.ui.header import render_header
 from src.eaton.ui.product_card import (
     mostrar_productos
@@ -44,7 +45,7 @@ catalogo = CatalogoService(
 )
 
 imagenes_marco = {
-    marco: str(ASSETS_DIR / f"{marco}.png")
+    marco: marco
     for marco in ["BZM", "PDG", "F", "J", "K", "L"]
 }
 
@@ -285,9 +286,9 @@ with col1:
 
                             if marco_derivado in imagenes_marco:
 
-                                st.image(
-                                    imagenes_marco[marco_derivado],
-                                    width="stretch"
+                                mostrar_imagen_marco(
+                                    ASSETS_DIR,
+                                    marco_derivado
                                 )
 
                             tipos = (
@@ -437,9 +438,9 @@ with col1:
 
                                     if marco_derivado in imagenes_marco:
 
-                                        st.image(
-                                            imagenes_marco[marco_derivado],
-                                            width="stretch"
+                                        mostrar_imagen_marco(
+                                            ASSETS_DIR,
+                                            marco_derivado
                                         )
 
                                     tipos = (
@@ -547,9 +548,9 @@ with col1:
 
                                     if marco_derivado in imagenes_marco:
 
-                                        st.image(
-                                            imagenes_marco[marco_derivado],
-                                            width="stretch"
+                                        mostrar_imagen_marco(
+                                            ASSETS_DIR,
+                                            marco_derivado
                                         )
 
                                     tipos = (
@@ -657,9 +658,9 @@ with col1:
 
                                     if marco_derivado in imagenes_marco:
 
-                                        st.image(
-                                            imagenes_marco[marco_derivado],
-                                            width="stretch"
+                                        mostrar_imagen_marco(
+                                            ASSETS_DIR,
+                                            marco_derivado
                                         )
 
                                     tipos = (
@@ -764,9 +765,9 @@ with col1:
 
                             if marco_derivado in imagenes_marco:
 
-                                st.image(
-                                    imagenes_marco[marco_derivado],
-                                    width="stretch"
+                                mostrar_imagen_marco(
+                                    ASSETS_DIR,
+                                    marco_derivado
                                 )
 
                             tipos = (
@@ -899,9 +900,9 @@ with col1:
 
                                     if marco_derivado in imagenes_marco:
 
-                                        st.image(
-                                            imagenes_marco[marco_derivado],
-                                            width="stretch"
+                                        mostrar_imagen_marco(
+                                            ASSETS_DIR,
+                                            marco_derivado
                                         )
 
                                     tipos = (
@@ -991,10 +992,10 @@ with col1:
 
                             if marco_derivado in imagenes_marco:
                             
-                                st.image(
-                                    imagenes_marco[marco_derivado],
-                                    width="stretch"
-                                )
+                                        mostrar_imagen_marco(
+                                            ASSETS_DIR,
+                                            marco_derivado
+                                        )
 
                             tipos = (
                                 catalogo.obtener_tipos_por_marco(
@@ -1126,9 +1127,9 @@ with col1:
 
                                         if marco_derivado in imagenes_marco:
 
-                                            st.image(
-                                            imagenes_marco[marco_derivado],
-                                            width="stretch"
+                                            mostrar_imagen_marco(
+                                                ASSETS_DIR,
+                                                marco_derivado
                                             )
 
                                         tipos = (
@@ -1715,9 +1716,9 @@ with col1:
 
                     if marco in imagenes_marco:
 
-                        st.image(
-                            imagenes_marco[marco],
-                            width="stretch"
+                        mostrar_imagen_marco(
+                            ASSETS_DIR,
+                            marco
                         )
 
                     tipos = (
@@ -3237,8 +3238,8 @@ with col2:
                 """
                 <style>
                 .confirmacion-nueva-orden {
-                    background: rgba(13, 17, 23, 0.98);
-                    border: 1px solid rgba(94, 234, 212, 0.35);
+                    background: var(--surface);
+                    border: 1px solid var(--border);
                     border-radius: 18px;
                     padding: 1.4rem 1.5rem 1rem;
                     box-shadow: 0 18px 45px rgba(0,0,0,0.45);
@@ -3247,13 +3248,13 @@ with col2:
                     text-align: center;
                 }
                 .confirmacion-nueva-orden h4 {
-                    color: #E5EEF9;
+                    color: var(--text-primary);
                     margin: 0 0 0.7rem;
                     font-size: 1.2rem;
                     font-weight: 700;
                 }
                 .confirmacion-nueva-orden p {
-                    color: #B8C4D9;
+                    color: var(--text-secondary);
                     margin: 0 0 0.8rem;
                     line-height: 1.5;
                     font-size: 0.98rem;

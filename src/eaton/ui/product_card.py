@@ -130,14 +130,14 @@ def mostrar_productos(
                     margin-bottom:0;
                     font-size:18px;
                     font-weight:bold;
-                    color:white;">
+                    color:var(--text-primary);">
                     {catalogo_producto}
                 </p>
 
                 <p style="
                     margin-top:0;
                     font-size:12px;
-                    color:#C9D1D9;">
+                    color:var(--text-secondary);">
                     {producto['Descripcion']}
                 </p>
                 """,

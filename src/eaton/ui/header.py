@@ -12,7 +12,7 @@ def render_header():
 
     st.markdown("""
     <h1 style="
-        color:white;
+        color:var(--text-primary);
         margin-top:-15px;
         margin-bottom:0px;
     ">
