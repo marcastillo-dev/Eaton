@@ -2371,17 +2371,27 @@ with col2:
 
                 with col_eliminar:
 
-                    if st.button(
+                    with st.popover(
                         "Eliminar",
-                        key=f"eliminar_{i}",
-                        width="stretch"
+                        use_container_width=True
                     ):
 
-                        st.session_state.ordenes_guardadas.pop(
-                            i - 1
+                        st.markdown(
+                            f"**¿Eliminar la Orden #{i}?**  "
+                            "Esta acción no se puede deshacer."
                         )
 
-                        st.rerun()
+                        if st.button(
+                            "Sí, eliminar",
+                            key=f"confirmar_eliminar_{i}",
+                            type="primary",
+                            use_container_width=True
+                        ):
+
+                            st.session_state.ordenes_guardadas.pop(
+                                i - 1
+                            )
+                            st.rerun()
 
         st.markdown(
             """

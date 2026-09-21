@@ -260,7 +260,10 @@ class EspacioService:
 
         total = 0
 
-        catalogos = conectores + tapas
+        catalogos = pd.concat(
+            [conectores, tapas],
+            ignore_index=True
+        )
 
         for item in carrito:
 
