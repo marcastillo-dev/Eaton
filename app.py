@@ -2175,7 +2175,8 @@ with col2:
                     capacidad,
                     principal["Marco"],
                     int(principal["# Polos"]),
-                    int(principal["Corriente"])
+                    int(principal["Corriente"]),
+                    principal.get("Clasificacion")
                 )
             )
 
@@ -2628,7 +2629,8 @@ with col2:
                         "Catalogo",
                         "Marco",
                         "Corriente",
-                        "# Polos"
+                        "# Polos",
+                        "Clasificacion"
                     ],
                     as_index=False
                 )
@@ -2675,7 +2677,8 @@ with col2:
                         capacidad_conectores,
                         breaker["Marco"],
                         int(breaker["# Polos"]),
-                        corriente
+                        corriente,
+                        breaker.get("Clasificacion")
                     )
                 )
 

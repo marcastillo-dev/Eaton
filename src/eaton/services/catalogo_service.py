@@ -490,15 +490,21 @@ class CatalogoService:
 
         df = self.hojas["Conectores"].copy()
 
+        try:
+            corriente = int(float(corriente))
+            polos = int(float(polos))
+        except (TypeError, ValueError):
+            return df.iloc[0:0].copy()
+
         candidatos = df[
             (df["Capacidad"] == capacidad)
             &
             (df["Marco"] == marco)
             &
-            (df["Corriente Min"] <= corriente)
+            (df["Corriente Min"].astype(float) <= corriente)
             &
-            (df["Corriente Max"] >= corriente)
-        ]
+            (df["Corriente Max"].astype(float) >= corriente)
+        ].copy()
 
         def coincide_polos(valor):
 
@@ -521,16 +527,25 @@ class CatalogoService:
             .apply(coincide_polos)
         ]
 
-        if (
-            marco == "PDG"
-            and clasificacion is not None
-            and "Clasificacion" in candidatos.columns
-        ):
+        if marco == "PDG" and "Clasificacion" in df.columns:
 
-            candidatos = candidatos[
-                candidatos["Clasificacion"]
-                == clasificacion
-            ]
+            clasificacion_normalizada = (
+                str(clasificacion).strip()
+                if clasificacion is not None and not pd.isna(clasificacion)
+                else None
+            )
+
+            if clasificacion_normalizada:
+
+                exactos = candidatos[
+                    candidatos["Clasificacion"]
+                    .astype(str)
+                    .str.strip()
+                    == clasificacion_normalizada
+                ]
+
+                if not exactos.empty:
+                    return exactos
 
         return candidatos
 
@@ -575,14 +590,16 @@ class CatalogoService:
         capacidad,
         marco,
         polos,
-        corriente
+        corriente,
+        clasificacion=None
     ):
 
         kit = self.obtener_kits_conectores_para_breaker(
             capacidad,
             marco,
             polos,
-            corriente
+            corriente,
+            clasificacion
         )
 
         if kit.empty:
