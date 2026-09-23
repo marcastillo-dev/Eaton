@@ -14,7 +14,11 @@ def main():
     if not python.is_file():
         subprocess.run([sys.executable, '-m', 'venv', '.venv-build'], check=True)
     subprocess.run([str(python), '-m', 'pip', 'install', '-r', 'requirements-build.txt'], check=True)
-    subprocess.run([str(python), '-m', 'PyInstaller', '--noconfirm', '--clean', 'EatonEDS.spec'], check=True)
+    workpath = Path(os.environ.get('TEMP', root / 'tmp')) / 'EatonEDS-pyinstaller'
+    subprocess.run([
+        str(python), '-m', 'PyInstaller', '--noconfirm', '--clean',
+        '--workpath', str(workpath), 'EatonEDS.spec'
+    ], check=True)
     exe = root / 'dist' / 'EatonEDS.exe'
     report = root / 'build' / 'verification.json'
     result = subprocess.run([str(exe), '--self-test', str(report)], timeout=180)

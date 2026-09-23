@@ -47,18 +47,12 @@ def self_test(output):
     for name in (
         "eaton_logo.ico",
         "eaton_logo.png",
-        "BZM_black.png",
-        "BZM_white.png",
-        "PDG_black.png",
-        "PDG_white.png",
-        "F_black.png",
-        "F_white.png",
-        "J_black.png",
-        "J_white.png",
-        "K_black.png",
-        "K_white.png",
-        "L_black.png",
-        "L_white.png"
+        "BZM.png",
+        "PDG.png",
+        "F.png",
+        "J.png",
+        "K.png",
+        "L.png"
     ):
         assert (ASSETS_DIR / name).is_file(), name
     app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=60).run()
@@ -74,18 +68,8 @@ def self_test(output):
 
 
 def launch():
-    import tkinter as tk
-    from tkinter import messagebox
+    import ctypes
 
-    window = tk.Tk()
-    window.title("Eaton · EDS Orders")
-    window.geometry("460x210")
-    window.resizable(False, False)
-    window.iconbitmap(str(ROOT / "assets" / "eaton_logo.ico"))
-    window.configure(bg="#f4f6f8")
-    status = tk.StringVar(value="Iniciando la aplicación…")
-    tk.Label(window, text="EATON  |  EDS Orders", font=("Segoe UI", 18, "bold"), fg="#005eb8", bg="#f4f6f8").pack(pady=(18, 8))
-    tk.Label(window, textvariable=status, font=("Segoe UI", 10), bg="#f4f6f8").pack()
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
@@ -100,10 +84,6 @@ def launch():
     child = subprocess.Popen(command, cwd=ROOT, stdout=log, stderr=log,
                              creationflags=subprocess.CREATE_NO_WINDOW)
 
-    def open_browser():
-        if not webbrowser.open(url):
-            messagebox.showinfo("Abrir aplicación", f"Abre esta dirección en tu navegador:\n{url}")
-
     def close():
         if child.poll() is None:
             child.terminate()
@@ -113,47 +93,42 @@ def launch():
                 child.kill()
                 child.wait()
         log.close()
-        window.destroy()
 
-    button = tk.Button(window, text="Abrir aplicación", command=open_browser, state="disabled")
-    button.pack(pady=10)
-    tk.Button(window, text="Cerrar aplicación", command=close).pack()
-    window.protocol("WM_DELETE_WINDOW", close)
     started = time.monotonic()
-    ready = False
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
-    def check():
-        nonlocal ready
-        if child.poll() is not None:
-            status.set("La aplicación se ha detenido.")
-            button.configure(state="disabled")
-            messagebox.showerror("Eaton EDS", f"No se pudo mantener la aplicación abierta.\nDetalles: {log_path}")
-            return
-        if not ready:
+    try:
+        while child.poll() is None:
+            if time.monotonic() - started > 120:
+                raise RuntimeError(
+                    f"Se agotó el tiempo de inicio. Consulta: {log_path}"
+                )
+
             try:
-                with opener.open(url + "/_stcore/health", timeout=0.3) as response:
-                    ready = response.status == 200
+                with opener.open(url + "/_stcore/health", timeout=0.5) as response:
+                    if response.status == 200:
+                        if not webbrowser.open(url):
+                            ctypes.windll.user32.MessageBoxW(
+                                0,
+                                f"Abre esta dirección en tu navegador:\n{url}",
+                                "Eaton EDS",
+                                0x40
+                            )
+                        break
             except OSError:
                 pass
-            if ready:
-                status.set("Aplicación en ejecución. Conserva esta ventana abierta.")
-                button.configure(state="normal")
-                open_browser()
-            elif time.monotonic() - started > 120:
-                messagebox.showerror("Eaton EDS", f"Se agotó el tiempo de inicio.\nDetalles: {log_path}")
-                close()
-                return
-        window.after(1000, check)
 
-    window.after(300, check)
-    try:
-        window.mainloop()
+            time.sleep(0.25)
+
+        if child.poll() is not None:
+            raise RuntimeError(
+                f"La aplicación se detuvo. Consulta: {log_path}"
+            )
+
+        while child.poll() is None:
+            time.sleep(1)
     finally:
-        if child.poll() is None:
-            child.terminate()
-            child.wait(timeout=5)
-        log.close()
+        close()
 
 
 if __name__ == "__main__":

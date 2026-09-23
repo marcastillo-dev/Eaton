@@ -4,6 +4,7 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules, copy_metada
 
 root = Path(SPECPATH)
 datas = [(str(root / 'app.py'), '.')]
+datas.append((str(root / '.streamlit'), '.streamlit'))
 for folder in ('assets', 'data'):
     datas.append((str(root / folder), folder))
 # Streamlit executes app.py dynamically, so its imports need explicit collection.
