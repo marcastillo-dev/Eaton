@@ -51,6 +51,140 @@ medidores = (
     .reset_index(drop=True)
 )
 
+
+def mostrar_controles_kits(
+    catalogo,
+    capacidad,
+    medidores,
+    orden_editando,
+    incluir_kits_neutros=False
+):
+
+    st.divider()
+
+    st.subheader("Kits")
+
+    valor_medicion = (
+        orden_editando.get("incluir_medicion", False)
+        if orden_editando
+        else False
+    )
+    incluir_medicion = st.checkbox(
+        "Kit de Medición",
+        value=valor_medicion
+    )
+    medidor_seleccionado = None
+
+    if incluir_medicion:
+
+        opcion_sin_medidor = "__NO_MEDIDOR__"
+        opciones_medidores = (
+            medidores["Catalogo"].tolist()
+            + [opcion_sin_medidor]
+        )
+
+        if st.session_state.get("medidor_seleccionado") is None:
+            st.session_state.pop("medidor_seleccionado", None)
+
+        medidor_guardado = (
+            orden_editando.get("medidor_seleccionado")
+            if orden_editando
+            else None
+        )
+
+        if medidor_guardado is None and orden_editando:
+            tablero_guardado = orden_editando.get(
+                "tablero",
+                pd.DataFrame()
+            )
+            if (
+                not tablero_guardado.empty
+                and "Catalogo" in tablero_guardado.columns
+            ):
+                medidores_guardados = tablero_guardado[
+                    tablero_guardado["Catalogo"].isin(
+                        opciones_medidores[:-1]
+                    )
+                ]
+                if not medidores_guardados.empty:
+                    medidor_guardado = medidores_guardados.iloc[0][
+                        "Catalogo"
+                    ]
+
+        indice_medidor = (
+            opciones_medidores.index(medidor_guardado)
+            if medidor_guardado in opciones_medidores
+            else None
+        )
+
+        medidor_seleccionado = st.selectbox(
+            "Selecciona un medidor",
+            opciones_medidores,
+            index=indice_medidor,
+            format_func=lambda opcion: (
+                "No se necesita"
+                if opcion == opcion_sin_medidor
+                else str(opcion)
+            ),
+            key="medidor_seleccionado",
+            placeholder="Selecciona un medidor",
+            label_visibility="collapsed"
+        )
+
+    incluir_bus = False
+    incluir_sensor = False
+    kits_seleccionados = pd.DataFrame()
+
+    if incluir_kits_neutros:
+
+        valor_bus = (
+            orden_editando.get("incluir_bus", False)
+            if orden_editando
+            else False
+        )
+        incluir_bus = st.checkbox(
+            "Bus neutro",
+            value=valor_bus
+        )
+
+        valor_sensor = (
+            orden_editando.get("incluir_sensor", False)
+            if orden_editando
+            else False
+        )
+        incluir_sensor = st.checkbox(
+            "Sensor neutro",
+            value=valor_sensor
+        )
+
+        if incluir_bus:
+            kits_seleccionados = pd.concat([
+                kits_seleccionados,
+                catalogo.obtener_kits_por_capacidad_y_categoria(
+                    capacidad,
+                    "Bus neutro"
+                )
+            ])
+
+        if incluir_sensor:
+            kits_seleccionados = pd.concat([
+                kits_seleccionados,
+                catalogo.obtener_kits_por_capacidad_y_categoria(
+                    capacidad,
+                    "Sensor neutro"
+                )
+            ])
+
+    st.divider()
+
+    return (
+        incluir_medicion,
+        medidor_seleccionado,
+        incluir_bus,
+        incluir_sensor,
+        kits_seleccionados
+    )
+
 imagenes_marco = {
     marco: marco
     for marco in ["BZM", "PDG", "F", "J", "K", "L"]
@@ -253,6 +387,20 @@ with col1:
                     key="acometida",
                     placeholder="Selecciona una acometida"
                 )
+
+                if altura and acometida:
+                    (
+                        incluir_medicion,
+                        medidor_seleccionado,
+                        incluir_bus,
+                        incluir_sensor,
+                        kits_seleccionados
+                    ) = mostrar_controles_kits(
+                        catalogo,
+                        capacidad,
+                        medidores,
+                        st.session_state.orden_editando
+                    )
 
                 if acometida != "Interruptor principal":
 
@@ -1469,154 +1617,30 @@ with col1:
                 )
                 or
                 (
-                    capacidad in [
-                        "2000 AMP",
-                        "3200 AMP"
-                    ]
+                    capacidad in ["2000 AMP", "3200 AMP"]
                     and acometida == "Interruptor principal"
                     and montaje
                 )
             )
 
             if mostrar_kits:
-
-                st.subheader("Kits")
-
-                valor_medicion = False
-
-                if st.session_state.orden_editando:
-
-                    valor_medicion = (
-                        st.session_state.orden_editando.get(
-                            "incluir_medicion",
-                            False
-                        )
-                    )
-
-                incluir_medicion = st.checkbox(
-                    "Kit de Medición",
-                    value=valor_medicion
+                (
+                    incluir_medicion,
+                    medidor_seleccionado,
+                    incluir_bus,
+                    incluir_sensor,
+                    kits_seleccionados
+                ) = mostrar_controles_kits(
+                    catalogo,
+                    capacidad,
+                    medidores,
+                    st.session_state.orden_editando,
+                    incluir_kits_neutros=capacidad in [
+                        "1600 AMP",
+                        "2000 AMP",
+                        "3200 AMP"
+                    ]
                 )
-
-                if incluir_medicion:
-
-                    opciones_medidores = [None] + (
-                        medidores["Catalogo"].tolist()
-                    )
-                    descripciones_medidores = (
-                        medidores
-                        .set_index("Catalogo")["Descripcion"]
-                        .to_dict()
-                    )
-                    medidor_guardado = (
-                        st.session_state.orden_editando.get(
-                            "medidor_seleccionado"
-                        )
-                        if st.session_state.orden_editando
-                        else None
-                    )
-
-                    if (
-                        medidor_guardado is None
-                        and st.session_state.orden_editando
-                    ):
-                        tablero_guardado = (
-                            st.session_state.orden_editando.get(
-                                "tablero",
-                                pd.DataFrame()
-                            )
-                        )
-                        if (
-                            not tablero_guardado.empty
-                            and "Catalogo" in tablero_guardado.columns
-                        ):
-                            medidores_guardados = tablero_guardado[
-                                tablero_guardado["Catalogo"].isin(
-                                    opciones_medidores[1:]
-                                )
-                            ]
-                            if not medidores_guardados.empty:
-                                medidor_guardado = medidores_guardados.iloc[0][
-                                    "Catalogo"
-                                ]
-
-                    indice_medidor = (
-                        opciones_medidores.index(medidor_guardado)
-                        if medidor_guardado in opciones_medidores
-                        else None
-                    )
-
-                    medidor_seleccionado = st.selectbox(
-                        "Selecciona un medidor",
-                        opciones_medidores,
-                        index=indice_medidor,
-                        format_func=lambda opcion: (
-                            "No se necesita"
-                            if opcion is None
-                            else str(
-                                descripciones_medidores.get(
-                                    opcion,
-                                    opcion
-                                )
-                            )
-                        ),
-                        key="medidor_seleccionado",
-                        placeholder="Selecciona una opción"
-                    )
-
-                valor_bus = False
-
-                if st.session_state.orden_editando:
-
-                    valor_bus = (
-                        st.session_state.orden_editando.get(
-                            "incluir_bus",
-                            False
-                        )
-                    )
-
-                incluir_bus = st.checkbox(
-                    "Bus neutro",
-                    value=valor_bus
-                )
-
-                valor_sensor = False
-
-                if st.session_state.orden_editando:
-
-                    valor_sensor = (
-                        st.session_state.orden_editando.get(
-                            "incluir_sensor",
-                            False
-                        )
-                    )
-
-                incluir_sensor = st.checkbox(
-                    "Sensor neutro",
-                    value=valor_sensor
-                )
-
-                if incluir_bus:
-
-                    kits_seleccionados = pd.concat([
-                        kits_seleccionados,
-                        catalogo.obtener_kits_por_capacidad_y_categoria(
-                            capacidad,
-                            "Bus neutro"
-                        )
-                    ])
-
-                if incluir_sensor:
-
-                    kits_seleccionados = pd.concat([
-                        kits_seleccionados,
-                        catalogo.obtener_kits_por_capacidad_y_categoria(
-                            capacidad,
-                            "Sensor neutro"
-                        )
-                    ])
-
-                st.divider()
 
             interruptores_izmx = pd.DataFrame()
 
@@ -2194,10 +2218,18 @@ with col2:
     mostrar_espacio = (
         (
             capacidad == "1600 AMP"
-            and configuracion == "Chasis"
             and (
-                acometida == "Zapatas principales"
-                or montaje
+                (
+                    configuracion == "Chasis"
+                    and (
+                        acometida == "Zapatas principales"
+                        or montaje
+                    )
+                )
+                or (
+                    configuracion == "Alimentador"
+                    and entrada_cables
+                )
             )
         )
         or
@@ -2702,8 +2734,8 @@ with col2:
         breakers_mostrados = pd.DataFrame()
 
         mostrar_seccion_derivados = (
-            mostrar_factor_breakers
-            or mostrar_espacio
+            not orden_interruptores.empty
+            or not orden_breakers.empty
         )
 
         if mostrar_seccion_derivados:
@@ -2711,15 +2743,6 @@ with col2:
             st.subheader(
                 "Derivados"
             )
-
-            placeholder_espacio = st.empty()
-
-            if mostrar_espacio:
-
-                placeholder_espacio.metric(
-                    "Espacio",
-                    f"{int(st.session_state.espacio_disponible)}X"
-                )
 
         if not orden_interruptores.empty:
 
@@ -3016,11 +3039,6 @@ with col2:
         )
 
         if mostrar_espacio:
-
-            placeholder_espacio.metric(
-                "Espacio",
-                f"{int(st.session_state.espacio_disponible)}X"
-            )
 
             st.markdown(
                 f"""
