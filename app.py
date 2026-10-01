@@ -44,6 +44,13 @@ catalogo = CatalogoService(
     CATALOGO
 )
 
+medidores = (
+    catalogo.obtener_medidores()
+    .dropna(subset=["Catalogo"])
+    .drop_duplicates(subset=["Catalogo"])
+    .reset_index(drop=True)
+)
+
 imagenes_marco = {
     marco: marco
     for marco in ["BZM", "PDG", "F", "J", "K", "L"]
@@ -146,6 +153,7 @@ with col1:
     kits_seleccionados = pd.DataFrame()
 
     incluir_medicion = False
+    medidor_seleccionado = None
     incluir_bus = False
     incluir_sensor = False
 
@@ -1486,9 +1494,75 @@ with col1:
                     )
 
                 incluir_medicion = st.checkbox(
-                    "Medición",
+                    "Kit de Medición",
                     value=valor_medicion
                 )
+
+                if incluir_medicion:
+
+                    opciones_medidores = [None] + (
+                        medidores["Catalogo"].tolist()
+                    )
+                    descripciones_medidores = (
+                        medidores
+                        .set_index("Catalogo")["Descripcion"]
+                        .to_dict()
+                    )
+                    medidor_guardado = (
+                        st.session_state.orden_editando.get(
+                            "medidor_seleccionado"
+                        )
+                        if st.session_state.orden_editando
+                        else None
+                    )
+
+                    if (
+                        medidor_guardado is None
+                        and st.session_state.orden_editando
+                    ):
+                        tablero_guardado = (
+                            st.session_state.orden_editando.get(
+                                "tablero",
+                                pd.DataFrame()
+                            )
+                        )
+                        if (
+                            not tablero_guardado.empty
+                            and "Catalogo" in tablero_guardado.columns
+                        ):
+                            medidores_guardados = tablero_guardado[
+                                tablero_guardado["Catalogo"].isin(
+                                    opciones_medidores[1:]
+                                )
+                            ]
+                            if not medidores_guardados.empty:
+                                medidor_guardado = medidores_guardados.iloc[0][
+                                    "Catalogo"
+                                ]
+
+                    indice_medidor = (
+                        opciones_medidores.index(medidor_guardado)
+                        if medidor_guardado in opciones_medidores
+                        else None
+                    )
+
+                    medidor_seleccionado = st.selectbox(
+                        "Selecciona un medidor",
+                        opciones_medidores,
+                        index=indice_medidor,
+                        format_func=lambda opcion: (
+                            "No se necesita"
+                            if opcion is None
+                            else str(
+                                descripciones_medidores.get(
+                                    opcion,
+                                    opcion
+                                )
+                            )
+                        ),
+                        key="medidor_seleccionado",
+                        placeholder="Selecciona una opción"
+                    )
 
                 valor_bus = False
 
@@ -1521,16 +1595,6 @@ with col1:
                     "Sensor neutro",
                     value=valor_sensor
                 )
-
-                if incluir_medicion:
-
-                    kits_seleccionados = pd.concat([
-                        kits_seleccionados,
-                        catalogo.obtener_kits_por_capacidad_y_categoria(
-                            capacidad,
-                            "Medicion"
-                        )
-                    ])
 
                 if incluir_bus:
 
@@ -2098,6 +2162,33 @@ if (
             subset=["Catalogo"]
         )
 
+medidores_catalogo = set(
+    medidores["Catalogo"].dropna()
+)
+medicion_anterior = catalogo.obtener_medicion()
+medidores_catalogo.update(
+    medicion_anterior["Catalogo"].dropna()
+)
+
+if (
+    not orden_actual.empty
+    and "Catalogo" in orden_actual.columns
+):
+    orden_actual = orden_actual[
+        ~orden_actual["Catalogo"].isin(medidores_catalogo)
+    ]
+
+if incluir_medicion and medidor_seleccionado is not None:
+    medidor_actual = medidores[
+        medidores["Catalogo"] == medidor_seleccionado
+    ]
+    orden_actual = pd.concat(
+        [orden_actual, medidor_actual],
+        ignore_index=True
+    ).drop_duplicates(
+        subset=["Catalogo"]
+    )
+
 with col2:
 
     mostrar_espacio = (
@@ -2307,7 +2398,8 @@ with col2:
                             "tipo_derivado",
                             "tipo_derivado_600",
                             "tipo_derivado_800",
-                            "tipo_derivado_1200"
+                            "tipo_derivado_1200",
+                            "medidor_seleccionado"
                         ]:
 
                             if key in st.session_state:
@@ -2607,8 +2699,6 @@ with col2:
                     f"Precio aplicado: {multiplicador_breakers:.0%}"
                 )
 
-            st.divider()
-
         breakers_mostrados = pd.DataFrame()
 
         mostrar_seccion_derivados = (
@@ -2617,8 +2707,6 @@ with col2:
         )
 
         if mostrar_seccion_derivados:
-
-            # st.divider()
 
             st.subheader(
                 "Derivados"
@@ -3086,6 +3174,7 @@ with col2:
                 "acometida": acometida,
                 "entrada_cables": entrada_cables,
                 "incluir_medicion": incluir_medicion,
+                "medidor_seleccionado": medidor_seleccionado,
                 "incluir_bus": incluir_bus,
                 "incluir_sensor": incluir_sensor,
                 "operacion": operacion,
@@ -3324,7 +3413,7 @@ with col2:
             with col_nueva:
 
                 if st.button(
-                    "Nueva orden",
+                    "Nueva Partida",
                     width="stretch"
                 ):
 

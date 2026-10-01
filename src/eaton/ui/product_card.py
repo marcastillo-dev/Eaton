@@ -36,6 +36,19 @@ def _obtener_espacio_disponible(principal=None):
         else None
     )
 
+    orden_editando = st.session_state.get("orden_editando")
+    if (
+        orden_editando
+        and orden_editando.get("capacidad") == capacidad
+    ):
+        espacio_total_guardado = orden_editando.get("espacio_total")
+        if (
+            espacio_total_guardado is not None
+            and pd.notna(espacio_total_guardado)
+            and float(espacio_total_guardado) > 0
+        ):
+            espacio_total_override = float(espacio_total_guardado)
+
     return calcular_espacio_disponible(
         catalogo,
         capacidad,

@@ -39,6 +39,9 @@ class CatalogoService:
     def obtener_tapas(self):
         return self.hojas["Tapas"]
 
+    def obtener_medidores(self):
+        return self.hojas["Medidores"].copy()
+
     def obtener_kits(self):
         return self.hojas["Kits"]
 
