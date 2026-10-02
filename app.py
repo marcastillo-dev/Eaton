@@ -1,3 +1,4 @@
+from PIL import Image
 import pandas as pd
 import streamlit as st
 from src.eaton.services.catalogo_service import CatalogoService
@@ -49,6 +50,15 @@ medidores = (
     .dropna(subset=["Catalogo"])
     .drop_duplicates(subset=["Catalogo"])
     .reset_index(drop=True)
+)
+transitorios = (
+    catalogo.obtener_hoja("Transitorios")
+    .dropna(subset=["Catalogo"])
+    .drop_duplicates(subset=["Catalogo"])
+    .reset_index(drop=True)
+)
+transitorios_catalogo = set(
+    transitorios["Catalogo"].dropna()
 )
 
 
@@ -277,6 +287,7 @@ with col1:
         key="capacidad",
         placeholder="Selecciona una capacidad"
     )
+    imagen_configuracion_slot = st.empty()
 
     configuracion = None
     acometida = None
@@ -288,6 +299,9 @@ with col1:
 
     incluir_medicion = False
     medidor_seleccionado = None
+    transitorio_seleccionado = None
+    espacio_transitorio = 0
+    st.session_state.espacio_transitorio = 0
     incluir_bus = False
     incluir_sensor = False
 
@@ -424,8 +438,6 @@ with col1:
                     )
 
                     if acometida == "Zapatas principales":
-
-                        st.divider()
 
                         st.subheader(
                             "Interruptores Derivados"
@@ -893,8 +905,6 @@ with col1:
                     ]
                 ):
 
-                    st.divider()
-
                     st.session_state.espacio_disponible = (
                         catalogo.obtener_espacio_por_capacidad_y_altura(
                             capacidad,
@@ -903,8 +913,6 @@ with col1:
                     )
 
                     if acometida == "Zapatas principales":
-
-                        st.divider()
 
                         st.subheader(
                             "Interruptores Derivados"
@@ -1127,11 +1135,7 @@ with col1:
                     ]
                 ):
 
-                    st.divider()
-
                     if acometida == "Zapatas principales":
-                    
-                        st.divider()
 
                         st.subheader(
                             "Interruptores Derivados"
@@ -1656,11 +1660,12 @@ with col1:
                 )
             )
 
-            if configuracion == "Alimentador":
-
-                st.divider()
-
             if mostrar_interruptor_principal:
+
+                if not mostrar_kits:
+                    st.divider()
+
+                st.subheader("Interruptor Principal")
 
                 operaciones = [
                     "Manual",
@@ -1727,8 +1732,6 @@ with col1:
                         value=valor_lsig
                     )
 
-                    st.divider()
-
                 interruptor_lsig = pd.DataFrame()
 
                 if lsig:
@@ -1775,14 +1778,117 @@ with col1:
                 )
             )
 
+            mostrar_filtro_transitorios = (
+                (
+                    capacidad == "1600 AMP"
+                    and (
+                        (
+                            configuracion == "Alimentador"
+                            and entrada_cables
+                            and operacion
+                        )
+                        or
+                        (
+                            configuracion == "Chasis"
+                            and acometida
+                            and (
+                                (
+                                    acometida == "Zapatas principales"
+                                    and entrada_cables
+                                )
+                                or (
+                                    acometida == "Interruptor principal"
+                                    and montaje
+                                    and operacion
+                                )
+                            )
+                        )
+                    )
+                )
+                or (
+                    capacidad in ["2000 AMP", "3200 AMP"]
+                    and (
+                        (
+                            acometida == "Interruptor principal"
+                            and montaje
+                            and operacion
+                        )
+                        or (
+                            acometida == "Chasis de Derivados"
+                            and usar_breakers == "Sí"
+                        )
+                        or acometida == "Secciones Vacías"
+                    )
+                )
+            )
+
+            if mostrar_filtro_transitorios:
+                transitorio_guardado = (
+                    st.session_state.orden_editando.get(
+                        "transitorio_seleccionado"
+                    )
+                    if st.session_state.orden_editando
+                    else None
+                )
+
+                if (
+                    transitorio_guardado is None
+                    and st.session_state.orden_editando
+                ):
+                    tablero_guardado = st.session_state.orden_editando.get(
+                        "tablero",
+                        pd.DataFrame()
+                    )
+                    if (
+                        not tablero_guardado.empty
+                        and "Catalogo" in tablero_guardado.columns
+                    ):
+                        filas_transitorios_guardadas = tablero_guardado[
+                            tablero_guardado["Catalogo"].isin(
+                                transitorios["Catalogo"]
+                            )
+                        ]
+                        if not filas_transitorios_guardadas.empty:
+                            transitorio_guardado = (
+                                filas_transitorios_guardadas.iloc[0]["Catalogo"]
+                            )
+
+                opciones_transitorios = transitorios["Catalogo"].tolist()
+                indice_transitorio = (
+                    opciones_transitorios.index(transitorio_guardado)
+                    if transitorio_guardado in opciones_transitorios
+                    else None
+                )
+
+                if not mostrar_kits or mostrar_interruptor_principal:
+                    st.divider()
+                st.subheader("Supresor de Transitorios")
+
+                transitorio_seleccionado = st.selectbox(
+                    "Selecciona un supresor",
+                    opciones_transitorios,
+                    index=indice_transitorio,
+                    key="transitorio_seleccionado",
+                    placeholder="Selecciona un supresor",
+                    label_visibility="collapsed"
+                )
+
+                if transitorio_seleccionado:
+                    espacio_transitorio = 7
+                st.session_state.espacio_transitorio = (
+                    espacio_transitorio
+                )
+
+            if (
+                mostrar_filtro_breakers
+                and mostrar_filtro_transitorios
+                and transitorio_seleccionado not in transitorios_catalogo
+            ):
+                mostrar_filtro_breakers = False
+
             if mostrar_filtro_breakers:
 
-                if acometida in [
-                    "Chasis de Derivados",
-                    "Secciones Vacías"
-                ]:
-
-                    st.divider()
+                st.divider()
 
                 st.subheader(
                     "Interruptores Derivados"
@@ -2031,6 +2137,35 @@ with col1:
             )
         )
 
+    imagen_configuracion = None
+
+    if capacidad == "1600 AMP":
+        if configuracion == "Chasis":
+            imagen_configuracion = "1600_Chasis"
+        elif configuracion == "Alimentador":
+            imagen_configuracion = "1600_Alimentador"
+    elif capacidad in ["2000 AMP", "3200 AMP"]:
+        if acometida == "Chasis de Derivados":
+            imagen_configuracion = "2000_3200_Chasis_Derivados"
+        elif acometida == "Secciones Vacías":
+            imagen_configuracion = "Seccion_Vacia"
+        elif acometida:
+            imagen_configuracion = "2000_3200"
+    elif capacidad in ["600 AMP", "800 AMP", "1200 AMP"]:
+        imagen_configuracion = "600_800_1200"
+
+    if imagen_configuracion:
+        ruta_imagen_configuracion = (
+            ASSETS_DIR / f"{imagen_configuracion}.png"
+        )
+        if ruta_imagen_configuracion.is_file():
+            with Image.open(ruta_imagen_configuracion) as imagen:
+                imagen.thumbnail((280, 280))
+                imagen_configuracion_slot.image(
+                    imagen.copy(),
+                    width=imagen.width
+                )
+
     st.markdown("<br>", unsafe_allow_html=True)
 
     if st.button("Limpiar filtros"):
@@ -2193,13 +2328,14 @@ medicion_anterior = catalogo.obtener_medicion()
 medidores_catalogo.update(
     medicion_anterior["Catalogo"].dropna()
 )
-
 if (
     not orden_actual.empty
     and "Catalogo" in orden_actual.columns
 ):
     orden_actual = orden_actual[
-        ~orden_actual["Catalogo"].isin(medidores_catalogo)
+        ~orden_actual["Catalogo"].isin(
+            medidores_catalogo | transitorios_catalogo
+        )
     ]
 
 if incluir_medicion and medidor_seleccionado is not None:
@@ -2208,6 +2344,17 @@ if incluir_medicion and medidor_seleccionado is not None:
     ]
     orden_actual = pd.concat(
         [orden_actual, medidor_actual],
+        ignore_index=True
+    ).drop_duplicates(
+        subset=["Catalogo"]
+    )
+
+if transitorio_seleccionado in transitorios_catalogo:
+    transitorio_actual = transitorios[
+        transitorios["Catalogo"] == transitorio_seleccionado
+    ]
+    orden_actual = pd.concat(
+        [orden_actual, transitorio_actual],
         ignore_index=True
     ).drop_duplicates(
         subset=["Catalogo"]
@@ -2260,6 +2407,10 @@ with col2:
                 "Interruptor principal",
                 "Zapatas principales"
             ]
+        )
+        or (
+            capacidad in ["1600 AMP", "2000 AMP", "3200 AMP"]
+            and transitorio_seleccionado in transitorios_catalogo
         )
     )
 
@@ -2364,7 +2515,8 @@ with col2:
             st.session_state.carrito_tapas,
             st.session_state.interruptor_principal,
             espacio_total_override,
-            selecciones_conectores
+            selecciones_conectores,
+            espacio_adicional=espacio_transitorio
         )
 
         st.session_state.espacio_total = espacio_total
@@ -2431,7 +2583,8 @@ with col2:
                             "tipo_derivado_600",
                             "tipo_derivado_800",
                             "tipo_derivado_1200",
-                            "medidor_seleccionado"
+                            "medidor_seleccionado",
+                            "transitorio_seleccionado"
                         ]:
 
                             if key in st.session_state:
@@ -3031,6 +3184,7 @@ with col2:
             - espacio_principal
             - espacio_conectores
             - espacio_tapas
+            - espacio_transitorio
         )
 
         st.session_state.espacio_disponible = max(
@@ -3193,6 +3347,7 @@ with col2:
                 "entrada_cables": entrada_cables,
                 "incluir_medicion": incluir_medicion,
                 "medidor_seleccionado": medidor_seleccionado,
+                "transitorio_seleccionado": transitorio_seleccionado,
                 "incluir_bus": incluir_bus,
                 "incluir_sensor": incluir_sensor,
                 "operacion": operacion,

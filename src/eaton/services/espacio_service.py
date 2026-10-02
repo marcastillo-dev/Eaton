@@ -228,7 +228,8 @@ def calcular_espacio_disponible(
     tapas,
     principal,
     espacio_total_override=None,
-    ubicaciones=None
+    ubicaciones=None,
+    espacio_adicional=0
 ):
 
     espacio_total = (
@@ -245,6 +246,7 @@ def calcular_espacio_disponible(
         calcular_x_breakers(catalogo, capacidad, breakers, ubicaciones)
         + calcular_x_tapas(tapas)
         + calcular_x_principal(catalogo, capacidad, principal)
+        + espacio_adicional
     )
 
     return max(0.0, espacio_total - espacio_usado)

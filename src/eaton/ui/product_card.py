@@ -61,7 +61,11 @@ def _obtener_espacio_disponible(principal=None):
             else principal
         ),
         espacio_total_override,
-        st.session_state.get("selecciones_conectores", {})
+        st.session_state.get("selecciones_conectores", {}),
+        espacio_adicional=st.session_state.get(
+            "espacio_transitorio",
+            0
+        )
     )
 
 def mostrar_productos(
