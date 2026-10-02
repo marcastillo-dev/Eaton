@@ -2,7 +2,7 @@
 
 import streamlit as st
 import pandas as pd
-from src.eaton.services.catalogo_service import CatalogoService
+from src.eaton.services.catalogo_service import obtener_catalogo
 from src.eaton.config.settings import CATALOGO
 from src.eaton.services.espacio_service import (
     calcular_espacio_disponible,
@@ -10,7 +10,7 @@ from src.eaton.services.espacio_service import (
     _convertir_x
 )
 
-catalogo = CatalogoService(
+catalogo = obtener_catalogo(
     CATALOGO
 )
 

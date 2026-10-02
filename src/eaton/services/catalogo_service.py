@@ -1,6 +1,9 @@
 # services/catalogo_service.py
 
+from pathlib import Path
+
 import pandas as pd
+import streamlit as st
 
 class CatalogoService:
 
@@ -613,3 +616,17 @@ class CatalogoService:
                 kit.iloc[0]["Size"]
             ).replace("X", "")
         )
+
+
+@st.cache_resource
+def _crear_catalogo_cacheado(ruta, fecha_modificacion):
+    return CatalogoService(ruta)
+
+
+def obtener_catalogo(archivo):
+    ruta = Path(archivo).resolve()
+    fecha_modificacion = ruta.stat().st_mtime_ns
+    return _crear_catalogo_cacheado(
+        str(ruta),
+        fecha_modificacion
+    )

@@ -1,7 +1,8 @@
+from io import BytesIO
 from PIL import Image
 import pandas as pd
 import streamlit as st
-from src.eaton.services.catalogo_service import CatalogoService
+from src.eaton.services.catalogo_service import obtener_catalogo
 from src.eaton.services.espacio_service import (
     calcular_espacio_disponible,
     calcular_x_breakers,
@@ -23,6 +24,15 @@ from src.eaton.ui.product_card import (
 )
 from src.eaton.services.export_service import generar_excel_ordenes
 
+
+@st.cache_data
+def cargar_imagen_configuracion(ruta, fecha_modificacion):
+    with Image.open(ruta) as imagen:
+        imagen.thumbnail((280, 280))
+        salida = BytesIO()
+        imagen.save(salida, format="PNG")
+        return salida.getvalue(), imagen.width
+
 st.set_page_config(
     page_title="EDS Orders",
     page_icon=str(LOGO_ICON),
@@ -41,7 +51,7 @@ if "toast_breaker" in st.session_state:
 
     del st.session_state.toast_breaker
 
-catalogo = CatalogoService(
+catalogo = obtener_catalogo(
     CATALOGO
 )
 
@@ -2159,12 +2169,14 @@ with col1:
             ASSETS_DIR / f"{imagen_configuracion}.png"
         )
         if ruta_imagen_configuracion.is_file():
-            with Image.open(ruta_imagen_configuracion) as imagen:
-                imagen.thumbnail((280, 280))
-                imagen_configuracion_slot.image(
-                    imagen.copy(),
-                    width=imagen.width
-                )
+            datos_imagen, ancho_imagen = cargar_imagen_configuracion(
+                str(ruta_imagen_configuracion),
+                ruta_imagen_configuracion.stat().st_mtime_ns
+            )
+            imagen_configuracion_slot.image(
+                datos_imagen,
+                width=ancho_imagen
+            )
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -2809,18 +2821,12 @@ with col2:
             1.00
         )
 
-        mostrar_factor_breakers = (
+        mostrar_seccion_derivados = (
             not orden_interruptores.empty
             or not orden_breakers.empty
-            or (
-                capacidad in [
-                    "600 AMP",
-                    "800 AMP",
-                    "1200 AMP"
-                ]
-                and acometida == "Zapatas principales"
-            )
         )
+
+        mostrar_factor_breakers = mostrar_seccion_derivados
 
         mostrar_factor_antes_principal = (
             mostrar_factor_breakers
@@ -2885,11 +2891,6 @@ with col2:
                 )
 
         breakers_mostrados = pd.DataFrame()
-
-        mostrar_seccion_derivados = (
-            not orden_interruptores.empty
-            or not orden_breakers.empty
-        )
 
         if mostrar_seccion_derivados:
 
