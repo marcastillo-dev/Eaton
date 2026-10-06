@@ -412,20 +412,6 @@ with col1:
                     placeholder="Selecciona una acometida"
                 )
 
-                if altura and acometida:
-                    (
-                        incluir_medicion,
-                        medidor_seleccionado,
-                        incluir_bus,
-                        incluir_sensor,
-                        kits_seleccionados
-                    ) = mostrar_controles_kits(
-                        catalogo,
-                        capacidad,
-                        medidores,
-                        st.session_state.orden_editando
-                    )
-
                 if acometida != "Interruptor principal":
 
                     st.session_state.interruptor_principal = pd.DataFrame()
@@ -556,6 +542,8 @@ with col1:
                                 )
 
                         st.divider()
+
+                        st.subheader("Interruptor Principal")
 
                         marco = st.selectbox(
                             "Marco",
@@ -1019,6 +1007,8 @@ with col1:
                             if marco_principal_guardado == "PDG":
                                 indice_marco_principal = 0
 
+                        st.subheader("Interruptor Principal")
+
                         marco = st.selectbox(
                             "Marco",
                             [
@@ -1241,6 +1231,8 @@ with col1:
 
                             if marco_principal_guardado == "PDG":
                                 indice_marco_principal = 0
+
+                        st.subheader("Interruptor Principal")
 
                         marco = st.selectbox(
                             "Marco",
