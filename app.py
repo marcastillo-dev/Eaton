@@ -43,7 +43,7 @@ cargar_estilos()
 
 render_header()
 
-@st.dialog("Aviso Normativo Importante")
+@st.dialog("Nota Importante")
 def mostrar_nota_normativa():
     st.markdown(
         """
