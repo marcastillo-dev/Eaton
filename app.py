@@ -43,6 +43,65 @@ cargar_estilos()
 
 render_header()
 
+@st.dialog("Aviso Normativo Importante")
+def mostrar_nota_normativa():
+    st.markdown(
+        """
+        **La suma total de la capacidad de los breakers derivados no podrá ser mayor a la capacidad nominal de la corriente del bus e interruptor principal.**
+
+        En base a la norma de instalación **NMX-J-118/2-ANCE-2000** se recomienda que los breakers derivados no excedan el **75%** de la corriente nominal del bus e interruptor principal.
+
+        *Es responsabilidad del cotizador verificar que se cumpla con la norma establecida.*
+        """
+    )
+    if st.button("Entendido", type="primary", use_container_width=True):
+        st.rerun()
+
+# Inicializar estado para mostrar el aviso al inicio
+if "aviso_normativo_mostrado" not in st.session_state:
+    st.session_state.aviso_normativo_mostrado = True
+    mostrar_nota_normativa()
+
+st.markdown(
+    """
+    <style>
+    div.st-key-popover_norma_top {
+        position: fixed;
+        top: 0.65rem;
+        right: 110px;
+        z-index: 999999;
+    }
+    div.st-key-popover_norma_top button {
+        background: transparent !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        border-radius: 8px !important;
+        color: #e0e0e0 !important;
+        height: 2rem !important;
+        font-size: 0.82rem !important;
+        padding: 0.2rem 0.6rem !important;
+    }
+    div.st-key-popover_norma_top button:hover {
+        border-color: #005EB8 !important;
+        color: #60a5fa !important;
+        background: rgba(255, 255, 255, 0.05) !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+with st.popover("ℹ️ Nota normativa", key="popover_norma_top"):
+    st.markdown("### Aviso Normativo Importante")
+    st.markdown(
+        """
+        - **La suma total de la capacidad de los breakers derivados** no podrá ser mayor a la capacidad nominal de la corriente del bus e interruptor principal.
+        
+        - En base a la norma de instalación **NMX-J-118/2-ANCE-2000** se recomienda que los breakers derivados no excedan el **75%** de la corriente nominal del bus e interruptor principal.
+        
+        > *Es responsabilidad del cotizador verificar que se cumpla con la norma establecida.*
+        """
+    )
+
 if "toast_breaker" in st.session_state:
 
     st.toast(
