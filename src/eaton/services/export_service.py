@@ -9,16 +9,34 @@ COLUMNAS = [
     "Descripcion",
     "Unidades",
     "Precio Unitario",
-    "Subtotal"
+    "Subtotal",
+    "Costo",
+    "Margen"
 ]
 
 
 def _numero(valor, predeterminado=0):
-
     try:
         return float(valor)
     except (TypeError, ValueError):
         return predeterminado
+
+
+def _obtener_costo_y_margen(item, precio_unitario):
+    """
+    Obtiene el costo y calcula el margen si existe el dato en el ítem.
+    Si falta o no es válido, retorna ('N/D', 'N/D').
+    """
+    if "Costo" in item and pd.notna(item["Costo"]):
+        costo_val = _numero(item["Costo"], None)
+        if costo_val is not None and costo_val >= 0:
+            if precio_unitario > 0:
+                margen_val = (precio_unitario - costo_val) / precio_unitario
+            else:
+                margen_val = 0.0
+            return costo_val, margen_val
+
+    return "N/D", "N/D"
 
 
 def _filas_dataframe(dataframe, multiplicador=1.0):
@@ -42,12 +60,16 @@ def _filas_dataframe(dataframe, multiplicador=1.0):
             * multiplicador
         )
 
+        costo, margen = _obtener_costo_y_margen(item, precio)
+
         filas.append({
             "Catalogo": item.get("Catalogo", ""),
             "Descripcion": item.get("Descripcion", ""),
             "Unidades": cantidad,
             "Precio Unitario": precio,
-            "Subtotal": precio * cantidad
+            "Subtotal": precio * cantidad,
+            "Costo": costo,
+            "Margen": margen
         })
 
     return filas
@@ -118,12 +140,15 @@ def _filas_conectores(orden, catalogo, multiplicador, selecciones):
 
         for _, item in kit.iterrows():
             precio = _numero(item.get("Precio")) * multiplicador
+            costo, margen = _obtener_costo_y_margen(item, precio)
             filas.append({
                 "Catalogo": item.get("Catalogo", ""),
                 "Descripcion": item.get("Descripcion", ""),
                 "Unidades": cantidad_kits,
                 "Precio Unitario": precio,
-                "Subtotal": precio * cantidad_kits
+                "Subtotal": precio * cantidad_kits,
+                "Costo": costo,
+                "Margen": margen
             })
 
     return filas
@@ -149,15 +174,24 @@ def _agregar_seccion(worksheet, filas, nombre, fila, formatos):
             item["Descripcion"],
             item["Unidades"],
             item["Precio Unitario"],
-            item["Subtotal"]
+            item["Subtotal"],
+            item.get("Costo", "N/D"),
+            item.get("Margen", "N/D")
         ]
 
         for columna, valor in enumerate(valores):
-            formato = (
-                formatos["currency"]
-                if columna in [4, 5]
-                else formatos["body"]
-            )
+            # Columna 4 y 5: Precios monetarios
+            if columna in [4, 5]:
+                formato = formatos["currency"]
+            # Columna 6: Costo (Moneda si es numérico, centrado si es N/D)
+            elif columna == 6:
+                formato = formatos["currency"] if isinstance(valor, (int, float)) else formatos["nd"]
+            # Columna 7: Margen (Porcentaje si es numérico, centrado si es N/D)
+            elif columna == 7:
+                formato = formatos["percentage"] if isinstance(valor, (int, float)) else formatos["nd"]
+            else:
+                formato = formatos["body"]
+
             worksheet.write(fila, columna, valor, formato)
 
         fila += 1
@@ -179,28 +213,46 @@ def _agrupar_filas(filas):
         )
         unidades = _numero(item.get("Unidades"))
         subtotal = _numero(item.get("Subtotal"))
+        costo = item.get("Costo")
+
         acumulado = resumen.setdefault(
             clave,
-            {"Unidades": 0.0, "Subtotal": 0.0}
+            {
+                "Unidades": 0.0,
+                "Subtotal": 0.0,
+                "Costo_Suma": 0.0,
+                "Tiene_Costo": True if isinstance(costo, (int, float)) else False
+            }
         )
         acumulado["Unidades"] += unidades
         acumulado["Subtotal"] += subtotal
+        if isinstance(costo, (int, float)):
+            acumulado["Costo_Suma"] += (costo * unidades)
+        else:
+            acumulado["Tiene_Costo"] = False
 
     filas_resumen = []
 
     for (catalogo, descripcion), valores in resumen.items():
         unidades = valores["Unidades"]
         subtotal = valores["Subtotal"]
+        precio_unitario = subtotal / unidades if unidades else 0
+
+        if valores["Tiene_Costo"] and unidades > 0:
+            costo_unitario = valores["Costo_Suma"] / unidades
+            margen = (precio_unitario - costo_unitario) / precio_unitario if precio_unitario > 0 else 0.0
+        else:
+            costo_unitario = "N/D"
+            margen = "N/D"
+
         filas_resumen.append({
             "Catalogo": catalogo,
             "Descripcion": descripcion,
             "Unidades": unidades,
-            "Precio Unitario": (
-                subtotal / unidades
-                if unidades
-                else 0
-            ),
-            "Subtotal": subtotal
+            "Precio Unitario": precio_unitario,
+            "Subtotal": subtotal,
+            "Costo": costo_unitario,
+            "Margen": margen
         })
 
     return filas_resumen
@@ -248,6 +300,18 @@ def generar_excel_ordenes(ordenes, catalogo, logo):
                 "num_format": '$#,##0.00',
                 "align": "right"
             }),
+            "percentage": workbook.add_format({
+                "border": 1,
+                "border_color": "#D9E2EC",
+                "num_format": '0.0%',
+                "align": "right"
+            }),
+            "nd": workbook.add_format({
+                "border": 1,
+                "border_color": "#D9E2EC",
+                "align": "center",
+                "font_color": "#627D98"
+            }),
             "total_label": workbook.add_format({
                 "bold": True,
                 "font_color": "#0A2342",
@@ -274,8 +338,10 @@ def generar_excel_ordenes(ordenes, catalogo, logo):
             worksheet.set_column("A:A", 10)
             worksheet.set_column("B:B", 22)
             worksheet.set_column("C:C", 52)
-            worksheet.set_column("D:D", 16)
+            worksheet.set_column("D:D", 14)
             worksheet.set_column("E:F", 18)
+            worksheet.set_column("G:G", 16)  # Costo
+            worksheet.set_column("H:H", 14)  # Margen
             worksheet.set_row(0, 40)
 
             if logo.is_file():
@@ -291,7 +357,7 @@ def generar_excel_ordenes(ordenes, catalogo, logo):
                 )
 
             worksheet.merge_range(
-                "C2:F2",
+                "C2:H2",
                 nombre_hoja,
                 formatos["title"]
             )
@@ -376,8 +442,10 @@ def generar_excel_ordenes(ordenes, catalogo, logo):
         worksheet.set_column("A:A", 10)
         worksheet.set_column("B:B", 22)
         worksheet.set_column("C:C", 52)
-        worksheet.set_column("D:D", 16)
+        worksheet.set_column("D:D", 14)
         worksheet.set_column("E:F", 18)
+        worksheet.set_column("G:G", 16)
+        worksheet.set_column("H:H", 14)
         worksheet.set_row(0, 40)
 
         if logo.is_file():
@@ -393,7 +461,7 @@ def generar_excel_ordenes(ordenes, catalogo, logo):
             )
 
         worksheet.merge_range(
-            "C2:F2",
+            "C2:H2",
             nombre_hoja,
             formatos["title"]
         )
@@ -424,13 +492,16 @@ def generar_excel(carrito, descuento_factor):
     for item in carrito:
         precio = _numero(item.get("Precio")) * descuento_factor
         cantidad = _numero(item.get("Cantidad"), 1)
+        costo, margen = _obtener_costo_y_margen(item, precio)
         datos.append({
             "Catalogo": item.get("Catalogo", ""),
             "Descripcion": item.get("Descripcion", ""),
             "Cantidad": cantidad,
             "Precio Lista": _numero(item.get("Precio")),
             "Precio Cliente": round(precio, 2),
-            "Subtotal": round(precio * cantidad, 2)
+            "Subtotal": round(precio * cantidad, 2),
+            "Costo": costo,
+            "Margen": margen
         })
 
     df_export = pd.DataFrame(datos)
@@ -444,4 +515,3 @@ def generar_excel(carrito, descuento_factor):
         )
 
     return output.getvalue()
-
