@@ -12,6 +12,12 @@ COLUMNAS = [
     "Subtotal"
 ]
 
+NOTA_IZMX = (
+    "* Para los interruptores de Potencia este precio es estimativo, "
+    "el precio correcto lo otorga tu representante de ventas y debe contener "
+    "en el catálogo los 16 dígitos que conforman el catálogo completo."
+)
+
 
 def _numero(valor, predeterminado=0):
 
@@ -129,7 +135,7 @@ def _filas_conectores(orden, catalogo, multiplicador, selecciones):
     return filas
 
 
-def _agregar_seccion(worksheet, filas, nombre, fila, formatos):
+def _agregar_seccion(worksheet, filas, nombre, fila, formatos, catalogos_izmx=None):
 
     if not filas:
         return fila
@@ -142,7 +148,13 @@ def _agregar_seccion(worksheet, filas, nombre, fila, formatos):
 
     fila += 1
 
+    tiene_izmx = False
+
     for partida, item in enumerate(filas, start=1):
+        cat_actual = str(item.get("Catalogo", "")).strip()
+        if catalogos_izmx and cat_actual in catalogos_izmx:
+            tiene_izmx = True
+
         valores = [
             partida,
             item["Catalogo"],
@@ -160,6 +172,16 @@ def _agregar_seccion(worksheet, filas, nombre, fila, formatos):
             )
             worksheet.write(fila, columna, valor, formato)
 
+        fila += 1
+
+    # Si la sección contiene algún interruptor IZMX, se añade la nota debajo
+    if tiene_izmx:
+        worksheet.set_row(fila, 26)  # Altura adecuada para las 2 líneas
+        worksheet.merge_range(
+            fila, 1, fila, len(COLUMNAS) - 1,
+            NOTA_IZMX,
+            formatos["nota_izmx"]
+        )
         fila += 1
 
     return fila + 1
@@ -211,6 +233,13 @@ def generar_excel_ordenes(ordenes, catalogo, logo):
     output = BytesIO()
     logo = Path(logo)
 
+    # Catálogos de la hoja Interruptores IZMX para detección automática
+    try:
+        df_hoja_izmx = catalogo.obtener_hoja("Interruptores IZMX")
+        catalogos_izmx = set(df_hoja_izmx["Catalogo"].dropna().astype(str).str.strip())
+    except Exception:
+        catalogos_izmx = set()
+
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
         workbook = writer.book
         formatos = {
@@ -247,6 +276,14 @@ def generar_excel_ordenes(ordenes, catalogo, logo):
                 "border_color": "#D9E2EC",
                 "num_format": '$#,##0.00',
                 "align": "right"
+            }),
+            "nota_izmx": workbook.add_format({
+                "font_size": 9,
+                "italic": True,
+                "font_color": "#005EB8",
+                "align": "left",
+                "valign": "vcenter",
+                "text_wrap": True
             }),
             "total_label": workbook.add_format({
                 "bold": True,
@@ -359,7 +396,8 @@ def generar_excel_ordenes(ordenes, catalogo, logo):
                     filas,
                     nombre,
                     fila,
-                    formatos
+                    formatos,
+                    catalogos_izmx=catalogos_izmx
                 )
                 total_calculado += sum(
                     item["Subtotal"] for item in filas
@@ -404,7 +442,8 @@ def generar_excel_ordenes(ordenes, catalogo, logo):
             filas_agrupadas,
             "Componentes",
             3,
-            formatos
+            formatos,
+            catalogos_izmx=catalogos_izmx
         )
         total_resumen = sum(
             item["Subtotal"] for item in filas_agrupadas
@@ -444,4 +483,3 @@ def generar_excel(carrito, descuento_factor):
         )
 
     return output.getvalue()
-
