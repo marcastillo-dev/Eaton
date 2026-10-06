@@ -14,6 +14,12 @@ COLUMNAS = [
     "Margen"
 ]
 
+NOTA_IZMX = (
+    "* Para los interruptores de Potencia este precio es estimativo, "
+    "el precio correcto lo otorga tu representante de ventas y debe contener "
+    "en el catálogo los 16 dígitos que conforman el catálogo completo."
+)
+
 
 def _numero(valor, predeterminado=0):
     try:
@@ -23,10 +29,6 @@ def _numero(valor, predeterminado=0):
 
 
 def _obtener_costo_y_margen(item, precio_unitario):
-    """
-    Obtiene el costo y calcula el margen si existe el dato en el ítem.
-    Si falta o no es válido, retorna ('N/D', 'N/D').
-    """
     if "Costo" in item and pd.notna(item["Costo"]):
         costo_val = _numero(item["Costo"], None)
         if costo_val is not None and costo_val >= 0:
@@ -154,7 +156,7 @@ def _filas_conectores(orden, catalogo, multiplicador, selecciones):
     return filas
 
 
-def _agregar_seccion(worksheet, filas, nombre, fila, formatos):
+def _agregar_seccion(worksheet, filas, nombre, fila, formatos, catalogos_izmx=None):
 
     if not filas:
         return fila
@@ -167,7 +169,13 @@ def _agregar_seccion(worksheet, filas, nombre, fila, formatos):
 
     fila += 1
 
+    tiene_izmx = False
+
     for partida, item in enumerate(filas, start=1):
+        cat_actual = str(item.get("Catalogo", "")).strip()
+        if catalogos_izmx and cat_actual in catalogos_izmx:
+            tiene_izmx = True
+
         valores = [
             partida,
             item["Catalogo"],
@@ -180,13 +188,10 @@ def _agregar_seccion(worksheet, filas, nombre, fila, formatos):
         ]
 
         for columna, valor in enumerate(valores):
-            # Columna 4 y 5: Precios monetarios
             if columna in [4, 5]:
                 formato = formatos["currency"]
-            # Columna 6: Costo (Moneda si es numérico, centrado si es N/D)
             elif columna == 6:
                 formato = formatos["currency"] if isinstance(valor, (int, float)) else formatos["nd"]
-            # Columna 7: Margen (Porcentaje si es numérico, centrado si es N/D)
             elif columna == 7:
                 formato = formatos["percentage"] if isinstance(valor, (int, float)) else formatos["nd"]
             else:
@@ -194,6 +199,16 @@ def _agregar_seccion(worksheet, filas, nombre, fila, formatos):
 
             worksheet.write(fila, columna, valor, formato)
 
+        fila += 1
+
+    # Si la sección contiene algún interruptor IZMX, se añade la nota debajo
+    if tiene_izmx:
+        worksheet.set_row(fila, 26)  # Altura suficiente para dos líneas
+        worksheet.merge_range(
+            fila, 1, fila, len(COLUMNAS) - 1,
+            NOTA_IZMX,
+            formatos["nota_izmx"]
+        )
         fila += 1
 
     return fila + 1
@@ -263,6 +278,13 @@ def generar_excel_ordenes(ordenes, catalogo, logo):
     output = BytesIO()
     logo = Path(logo)
 
+    # Conjunto de catálogos de interruptores IZMX para detección rápida
+    try:
+        df_hoja_izmx = catalogo.obtener_hoja("Interruptores IZMX")
+        catalogos_izmx = set(df_hoja_izmx["Catalogo"].dropna().astype(str).str.strip())
+    except Exception:
+        catalogos_izmx = set()
+
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
         workbook = writer.book
         formatos = {
@@ -312,6 +334,14 @@ def generar_excel_ordenes(ordenes, catalogo, logo):
                 "align": "center",
                 "font_color": "#627D98"
             }),
+            "nota_izmx": workbook.add_format({
+                "font_size": 9,
+                "italic": True,
+                "font_color": "#005EB8",
+                "align": "left",
+                "valign": "vcenter",
+                "text_wrap": True
+            }),
             "total_label": workbook.add_format({
                 "bold": True,
                 "font_color": "#0A2342",
@@ -340,8 +370,8 @@ def generar_excel_ordenes(ordenes, catalogo, logo):
             worksheet.set_column("C:C", 52)
             worksheet.set_column("D:D", 14)
             worksheet.set_column("E:F", 18)
-            worksheet.set_column("G:G", 16)  # Costo
-            worksheet.set_column("H:H", 14)  # Margen
+            worksheet.set_column("G:G", 16)
+            worksheet.set_column("H:H", 14)
             worksheet.set_row(0, 40)
 
             if logo.is_file():
@@ -425,7 +455,8 @@ def generar_excel_ordenes(ordenes, catalogo, logo):
                     filas,
                     nombre,
                     fila,
-                    formatos
+                    formatos,
+                    catalogos_izmx=catalogos_izmx
                 )
                 total_calculado += sum(
                     item["Subtotal"] for item in filas
@@ -472,7 +503,8 @@ def generar_excel_ordenes(ordenes, catalogo, logo):
             filas_agrupadas,
             "Componentes",
             3,
-            formatos
+            formatos,
+            catalogos_izmx=catalogos_izmx
         )
         total_resumen = sum(
             item["Subtotal"] for item in filas_agrupadas
