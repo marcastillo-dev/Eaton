@@ -286,9 +286,7 @@ class CatalogoService:
             "BZM",
             "PDG",
             "F",
-            "J",
-            "K",
-            "L"
+            "J"
         ]
 
     def obtener_tipos_por_marco(
