@@ -114,6 +114,10 @@ catalogo = obtener_catalogo(
     CATALOGO
 )
 
+# Filtro para excluir marcos K y L en derivados
+def obtener_marcos_activos():
+    return [m for m in catalogo.obtener_marcos() if m not in ["K", "L"]]
+
 medidores = (
     catalogo.obtener_medidores()
     .dropna(subset=["Catalogo"])
@@ -266,7 +270,7 @@ def mostrar_controles_kits(
 
 imagenes_marco = {
     marco: marco
-    for marco in ["BZM", "PDG", "F", "J", "K", "L"]
+    for marco in ["BZM", "PDG", "F", "J"]
 }
 
 if "ordenes_guardadas" not in st.session_state:
@@ -483,8 +487,6 @@ with col1:
                     ]
                 ):
 
-                    # st.divider()
-
                     st.session_state.espacio_disponible = (
                         catalogo.obtener_espacio_por_capacidad_y_altura(
                             capacidad,
@@ -500,7 +502,7 @@ with col1:
 
                         marco_derivado = st.selectbox(
                             "Marco",
-                            catalogo.obtener_marcos(),
+                            obtener_marcos_activos(),
                             index=None,
                             key="marco_derivado_600"
                         )
@@ -573,11 +575,7 @@ with col1:
                                     )
 
                     else:
-
-                        if altura == 73:
-                            marcos_principal = ["BZM", "PDG", "L"]
-                        else:
-                            marcos_principal = ["BZM", "PDG", "K"]
+                        marcos_principal = ["BZM", "PDG"]
 
                         indice_marco = None
 
@@ -654,7 +652,7 @@ with col1:
 
                                 marco_derivado = st.selectbox(
                                     "Marco",
-                                    catalogo.obtener_marcos(),
+                                    obtener_marcos_activos(),
                                     index=None,
                                     key="marco_derivado"
                                 )
@@ -764,7 +762,7 @@ with col1:
 
                                 marco_derivado = st.selectbox(
                                     "Marco",
-                                    catalogo.obtener_marcos(),
+                                    obtener_marcos_activos(),
                                     index=None,
                                     key="marco_derivado"
                                 )
@@ -793,124 +791,6 @@ with col1:
                                     )
 
                                     if tipo_derivado:
-
-                                        breakers = (
-                                            catalogo.obtener_breakers(
-                                                "1600 AMP",
-                                                marco_derivado,
-                                                tipo_derivado
-                                            )
-                                        )
-
-                                        breakers = breakers[
-                                            breakers["Corriente"] <= 400
-                                        ]
-
-                                        breakers = breakers.copy()
-
-                                        breakers["Marco"] = marco_derivado
-
-                                        mostrar_productos(
-                                            breakers,
-                                            "breakers",
-                                            mostrar_boton=True
-                                        )
-
-                                        tapas = (
-                                            catalogo.obtener_tapas_por_capacidad(
-                                                "600 AMP"
-                                            )
-                                        )
-
-                                        if not tapas.empty:
-
-                                            st.divider()
-
-                                            st.subheader(
-                                                "Tapas"
-                                            )
-
-                                            mostrar_productos(
-                                                tapas,
-                                                "tapas",
-                                                mostrar_boton=True
-                                            )
-
-                        elif marco in ["K", "L"]:
-
-                            breakers = (
-                                catalogo.obtener_hoja(marco)
-                                .copy()
-                            )
-
-                            breakers = breakers[
-                                (breakers["Corriente"] == 400)
-                                &
-                                (breakers["Catalogo"] != "KDB3400L")
-                            ]
-
-                            breakers["Marco"] = marco
-
-                            if (
-                                acometida == "Interruptor principal"
-                                and st.session_state.interruptor_principal.empty
-                            ):
-                                mostrar_productos(
-                                    breakers,
-                                    "principal",
-                                    mostrar_boton=True
-                                )
-
-                            elif (
-                                acometida == "Zapatas principales"
-                                or not st.session_state.interruptor_principal.empty
-                            ):
-
-                                st.divider()
-
-                                st.subheader(
-                                    "Interruptores Derivados"
-                                )
-
-                                marco_derivado = st.selectbox(
-                                    "Marco",
-                                    catalogo.obtener_marcos(),
-                                    index=None,
-                                    key="marco_derivado"
-                                )
-
-                                if marco_derivado:
-
-                                    if marco_derivado in imagenes_marco:
-
-                                        mostrar_imagen_marco(
-                                            ASSETS_DIR,
-                                            marco_derivado
-                                        )
-
-                                    tipos = (
-                                        catalogo.obtener_tipos_por_marco(
-                                            "1600 AMP",
-                                            marco_derivado
-                                        )
-                                    )
-
-                                    tipo_derivado = st.selectbox(
-                                        "Tipo",
-                                        tipos,
-                                        index=None,
-                                        key="tipo_derivado"
-                                    )
-
-                                    if tipo_derivado:
-
-                                        breakers = (
-                                            catalogo.obtener_breakers(
-                                                "1600 AMP",
-                                                marco_derivado,
-                                                tipo_derivado
-                                            )
-                                        )
 
                                         breakers = (
                                             catalogo.obtener_breakers(
@@ -977,7 +857,7 @@ with col1:
 
                         marco_derivado = st.selectbox(
                             "Marco",
-                            catalogo.obtener_marcos(),
+                            obtener_marcos_activos(),
                             index=None,
                             key="marco_derivado_800"
                         )
@@ -1114,7 +994,7 @@ with col1:
 
                                 marco_derivado = st.selectbox(
                                     "Marco",
-                                    catalogo.obtener_marcos(),
+                                    obtener_marcos_activos(),
                                     index=None,
                                     key="marco_derivado"
                                 )
@@ -1202,7 +1082,7 @@ with col1:
 
                         marco_derivado = st.selectbox(
                             "Marco",
-                            catalogo.obtener_marcos(),
+                            obtener_marcos_activos(),
                             index=None,
                             key="marco_derivado_1200"
                         )
@@ -1211,10 +1091,10 @@ with col1:
 
                             if marco_derivado in imagenes_marco:
                             
-                                        mostrar_imagen_marco(
-                                            ASSETS_DIR,
-                                            marco_derivado
-                                        )
+                                mostrar_imagen_marco(
+                                    ASSETS_DIR,
+                                    marco_derivado
+                                )
 
                             tipos = (
                                 catalogo.obtener_tipos_por_marco(
@@ -1337,27 +1217,18 @@ with col1:
 
                                 marco_derivado = st.selectbox(
                                     "Marco",
-                                    catalogo.obtener_marcos(),
+                                    obtener_marcos_activos(),
                                     index=None,
                                     key="marco_derivado"
                                 )
 
                                 if marco_derivado:
 
-                                    if marco_derivado:
+                                    if marco_derivado in imagenes_marco:
 
-                                        if marco_derivado in imagenes_marco:
-
-                                            mostrar_imagen_marco(
-                                                ASSETS_DIR,
-                                                marco_derivado
-                                            )
-
-                                        tipos = (
-                                            catalogo.obtener_tipos_por_marco(
-                                                "2000 AMP",
-                                                marco_derivado
-                                            )
+                                        mostrar_imagen_marco(
+                                            ASSETS_DIR,
+                                            marco_derivado
                                         )
 
                                     tipos = (
@@ -1955,13 +1826,9 @@ with col1:
                     "Interruptores Derivados"
                 )
 
-                marcos = (
-                    catalogo.obtener_marcos()
-                )
-
                 marco = st.selectbox(
                     "Marco",
-                    marcos,
+                    obtener_marcos_activos(),
                     index=None,
                     key="marco",
                     placeholder="Selecciona un marco"
@@ -2757,6 +2624,13 @@ with col2:
             use_container_width=True
         ):
 
+            # Switch para activar o desactivar columnas de costo y margen
+            incluir_costos = st.toggle(
+                "Incluir Costo y Margen",
+                value=True,
+                help="Agrega columnas de costo y margen en el reporte de Excel."
+            )
+
             ordenes_seleccionadas = []
 
             for indice, orden in enumerate(
@@ -2781,11 +2655,13 @@ with col2:
                 orden["_numero_orden"] = indice + 1
                 ordenes_exportar.append(orden)
 
+            # Se pasa incluir_costos a la llamada de generación
             archivo_excel = (
                 generar_excel_ordenes(
                     ordenes_exportar,
                     catalogo,
-                    LOGO
+                    LOGO,
+                    incluir_costos=incluir_costos
                 )
                 if ordenes_exportar
                 else None
