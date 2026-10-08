@@ -2624,13 +2624,6 @@ with col2:
             use_container_width=True
         ):
 
-            # Switch para activar o desactivar columnas de costo y margen
-            incluir_costos = st.toggle(
-                "Incluir Costo y Margen",
-                value=True,
-                help="Agrega columnas de costo y margen en el reporte de Excel."
-            )
-
             ordenes_seleccionadas = []
 
             for indice, orden in enumerate(
@@ -2660,8 +2653,7 @@ with col2:
                 generar_excel_ordenes(
                     ordenes_exportar,
                     catalogo,
-                    LOGO,
-                    incluir_costos=incluir_costos
+                    LOGO
                 )
                 if ordenes_exportar
                 else None
