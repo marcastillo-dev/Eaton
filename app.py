@@ -71,6 +71,21 @@ st.markdown(
         right: 110px;
         z-index: 999999;
     }
+    div.st-key-popover_moneda_top {
+        position: fixed;
+        top: 0.65rem;
+        right: 210px;
+        z-index: 999999;
+    }
+    div.st-key-popover_moneda_top button {
+        background: transparent !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        border-radius: 8px !important;
+        color: #e0e0e0 !important;
+        height: 2rem !important;
+        font-size: 0.82rem !important;
+        padding: 0.2rem 0.6rem !important;
+    }
     div.st-key-popover_norma_top button {
         background: transparent !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
@@ -99,6 +114,13 @@ with st.popover("ℹ️ Nota ", key="popover_norma_top"):
         - En base a la norma de instalación **NMX-J-118/2-ANCE-2000** se recomienda que los breakers derivados no excedan el **75%** de la corriente nominal del bus e interruptor principal.
         
         > *Es responsabilidad del cotizador verificar que se cumpla con la norma establecida.*
+        """
+    )
+
+with st.popover("🪙 MXN", key="popover_moneda_top"):
+    st.markdown(
+        """
+        Todos los precios mostrados en la aplicación están expresados en **Pesos Mexicanos (MXN)**
         """
     )
 
@@ -1319,7 +1341,7 @@ with col1:
                     "Configuración",
                     configuraciones,
                     index=indice_configuracion,
-                    key="configuracion",
+                    key=f"configuracion_{id(st.session_state.orden_editando)}",
                     placeholder="Selecciona una configuración"
                 )
 
@@ -1483,6 +1505,12 @@ with col1:
                     key="acometida",
                     placeholder="Selecciona una acometida"
                 )
+
+                if acometida == "Secciones Vacías":
+                    if capacidad == "2000 AMP":
+                        st.markdown('**Dimensiones:** 36" × 36" × 90"')
+                    elif capacidad == "3200 AMP":
+                        st.markdown('**Dimensiones:** 36" × 48" × 90"')
 
                 if acometida in [
                     "Chasis de Derivados"
@@ -1785,7 +1813,10 @@ with col1:
                                 filas_transitorios_guardadas.iloc[0]["Catalogo"]
                             )
 
-                opciones_transitorios = transitorios["Catalogo"].tolist()
+                opciones_transitorios = [
+                    "__NO_TRANSITORIO__"
+                ] + transitorios["Catalogo"].tolist()
+
                 indice_transitorio = (
                     opciones_transitorios.index(transitorio_guardado)
                     if transitorio_guardado in opciones_transitorios
@@ -1801,20 +1832,24 @@ with col1:
                     opciones_transitorios,
                     index=indice_transitorio,
                     key="transitorio_seleccionado",
-                    placeholder="Selecciona un supresor",
+                    format_func=lambda x: (
+                        "No se necesita"
+                        if x == "__NO_TRANSITORIO__"
+                        else x
+                    ),
                     label_visibility="collapsed"
                 )
 
-                if transitorio_seleccionado:
+                if (
+                    transitorio_seleccionado
+                    and transitorio_seleccionado != "__NO_TRANSITORIO__"
+                ):
                     espacio_transitorio = 7
-                st.session_state.espacio_transitorio = (
-                    espacio_transitorio
-                )
 
             if (
                 mostrar_filtro_breakers
                 and mostrar_filtro_transitorios
-                and transitorio_seleccionado not in transitorios_catalogo
+                and transitorio_seleccionado is None
             ):
                 mostrar_filtro_breakers = False
 
@@ -2485,7 +2520,7 @@ with col2:
 
                 st.divider()
 
-                col_editar, col_eliminar = st.columns(2)
+                col_editar, col_duplicar, col_eliminar = st.columns(3)
 
                 with col_editar:
 
@@ -2574,6 +2609,75 @@ with col2:
                             )
 
                         st.session_state.orden_editando_indice = i - 1
+
+                        st.rerun()
+
+                
+                with col_duplicar:
+
+                    if st.button(
+                        "Duplicar",
+                        key=f"duplicar_{i}",
+                        width="stretch"
+                    ):
+
+                        # Limpiar widgets exactamente igual que Editar
+                        for key in [
+                            "capacidad",
+                            "altura",
+                            "configuracion",
+                            "acometida",
+                            "entrada_cables",
+                            "montaje",
+                            "operacion",
+                            "marco",
+                            "tipo",
+                            "marco_derivado",
+                            "marco_derivado_600",
+                            "marco_derivado_800",
+                            "marco_derivado_1200",
+                            "tipo_derivado",
+                            "tipo_derivado_600",
+                            "tipo_derivado_800",
+                            "tipo_derivado_1200",
+                            "medidor_seleccionado",
+                            "transitorio_seleccionado"
+                        ]:
+                            st.session_state.pop(key, None)
+
+                        nueva_orden = {
+                            k: (
+                                v.copy()
+                                if isinstance(v, pd.DataFrame)
+                                else v
+                            )
+                            for k, v in orden.items()
+                        }
+
+                        # Vaciar derivados
+                        nueva_orden["breakers"] = pd.DataFrame()
+                        nueva_orden["tapas"] = pd.DataFrame()
+                        nueva_orden["interruptores"] = pd.DataFrame()
+
+                        # Igual que Editar
+                        st.session_state.interruptor_principal = (
+                            orden.get(
+                                "interruptor_principal",
+                                pd.DataFrame()
+                            ).copy()
+                        )
+
+                        st.session_state.carrito_breakers = pd.DataFrame()
+
+                        st.session_state.carrito_tapas = pd.DataFrame()
+
+                        st.session_state.selecciones_conectores = {}
+
+                        st.session_state.orden_editando = nueva_orden
+
+                        st.session_state.orden_guardada_actual = None
+
+                        st.session_state.orden_editando_indice = None
 
                         st.rerun()
 
@@ -3267,7 +3371,11 @@ with col2:
                 "entrada_cables": entrada_cables,
                 "incluir_medicion": incluir_medicion,
                 "medidor_seleccionado": medidor_seleccionado,
-                "transitorio_seleccionado": transitorio_seleccionado,
+                "transitorio_seleccionado": (
+                    None
+                    if transitorio_seleccionado == "__NO_TRANSITORIO__"
+                    else transitorio_seleccionado
+                ),
                 "incluir_bus": incluir_bus,
                 "incluir_sensor": incluir_sensor,
                 "operacion": operacion,
