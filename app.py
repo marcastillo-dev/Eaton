@@ -71,6 +71,21 @@ st.markdown(
         right: 110px;
         z-index: 999999;
     }
+    div.st-key-popover_moneda_top {
+        position: fixed;
+        top: 0.65rem;
+        right: 210px;
+        z-index: 999999;
+    }
+    div.st-key-popover_moneda_top button {
+        background: transparent !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        border-radius: 8px !important;
+        color: #e0e0e0 !important;
+        height: 2rem !important;
+        font-size: 0.82rem !important;
+        padding: 0.2rem 0.6rem !important;
+    }
     div.st-key-popover_norma_top button {
         background: transparent !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
@@ -99,6 +114,14 @@ with st.popover("ℹ️ Nota ", key="popover_norma_top"):
         - En base a la norma de instalación **NMX-J-118/2-ANCE-2000** se recomienda que los breakers derivados no excedan el **75%** de la corriente nominal del bus e interruptor principal.
         
         > *Es responsabilidad del cotizador verificar que se cumpla con la norma establecida.*
+        """
+    )
+
+with st.popover("💰 MXN", key="popover_moneda_top"):
+    st.markdown("### Moneda")
+    st.markdown(
+        """
+        Todos los precios mostrados en la aplicación están expresados en **Pesos Mexicanos (MXN)**
         """
     )
 
