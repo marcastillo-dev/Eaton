@@ -117,8 +117,8 @@ with st.popover("ℹ️ Nota ", key="popover_norma_top"):
         """
     )
 
-with st.popover("💰 MXN", key="popover_moneda_top"):
-    st.markdown("### Moneda")
+# CAMBIO 1: Icono de moneda actualizado a 🪙
+with st.popover("🪙 MXN", key="popover_moneda_top"):
     st.markdown(
         """
         Todos los precios mostrados en la aplicación están expresados en **Pesos Mexicanos (MXN)**
@@ -137,7 +137,7 @@ catalogo = obtener_catalogo(
     CATALOGO
 )
 
-# Función auxiliar para asegurar que K y L queden fuera de cualquier lista de marcos derivados
+# Filtro para excluir marcos K y L en derivados
 def obtener_marcos_activos():
     return [m for m in catalogo.obtener_marcos() if m not in ["K", "L"]]
 
@@ -291,7 +291,6 @@ def mostrar_controles_kits(
         kits_seleccionados
     )
 
-# Se eliminan K y L de las imágenes de marco
 imagenes_marco = {
     marco: marco
     for marco in ["BZM", "PDG", "F", "J"]
@@ -599,7 +598,6 @@ with col1:
                                     )
 
                     else:
-                        # Para 600 AMP interruptor principal sólo se permiten BZM y PDG (se retiran K y L)
                         marcos_principal = ["BZM", "PDG"]
 
                         indice_marco = None
@@ -1340,11 +1338,12 @@ with col1:
                             )
                         )
 
+                # CAMBIO 2: Key dinámica para evitar colisiones en Streamlit
                 configuracion = st.selectbox(
                     "Configuración",
                     configuraciones,
                     index=indice_configuracion,
-                    key="configuracion",
+                    key=f"configuracion_{id(st.session_state.orden_editando)}",
                     placeholder="Selecciona una configuración"
                 )
 
@@ -1508,6 +1507,13 @@ with col1:
                     key="acometida",
                     placeholder="Selecciona una acometida"
                 )
+
+                # CAMBIO 3: Dimensiones informativas para "Secciones Vacías"
+                if acometida == "Secciones Vacías":
+                    if capacidad == "2000 AMP":
+                        st.markdown('**Dimensiones:** 36" × 36" × 90"')
+                    elif capacidad == "3200 AMP":
+                        st.markdown('**Dimensiones:** 36" × 48" × 90"')
 
                 if acometida in [
                     "Chasis de Derivados"
@@ -1810,7 +1816,11 @@ with col1:
                                 filas_transitorios_guardadas.iloc[0]["Catalogo"]
                             )
 
-                opciones_transitorios = transitorios["Catalogo"].tolist()
+                # CAMBIO 4: Opción implícita de "__NO_TRANSITORIO__" con format_func
+                opciones_transitorios = [
+                    "__NO_TRANSITORIO__"
+                ] + transitorios["Catalogo"].tolist()
+
                 indice_transitorio = (
                     opciones_transitorios.index(transitorio_guardado)
                     if transitorio_guardado in opciones_transitorios
@@ -1826,20 +1836,24 @@ with col1:
                     opciones_transitorios,
                     index=indice_transitorio,
                     key="transitorio_seleccionado",
-                    placeholder="Selecciona un supresor",
+                    format_func=lambda x: (
+                        "No se necesita"
+                        if x == "__NO_TRANSITORIO__"
+                        else x
+                    ),
                     label_visibility="collapsed"
                 )
 
-                if transitorio_seleccionado:
+                if (
+                    transitorio_seleccionado
+                    and transitorio_seleccionado != "__NO_TRANSITORIO__"
+                ):
                     espacio_transitorio = 7
-                st.session_state.espacio_transitorio = (
-                    espacio_transitorio
-                )
 
             if (
                 mostrar_filtro_breakers
                 and mostrar_filtro_transitorios
-                and transitorio_seleccionado not in transitorios_catalogo
+                and transitorio_seleccionado is None
             ):
                 mostrar_filtro_breakers = False
 
@@ -2510,7 +2524,8 @@ with col2:
 
                 st.divider()
 
-                col_editar, col_eliminar = st.columns(2)
+                # CAMBIO 5: Se agregan 3 columnas para incluir el botón "Duplicar"
+                col_editar, col_duplicar, col_eliminar = st.columns(3)
 
                 with col_editar:
 
@@ -2599,6 +2614,73 @@ with col2:
                             )
 
                         st.session_state.orden_editando_indice = i - 1
+
+                        st.rerun()
+
+                with col_duplicar:
+
+                    if st.button(
+                        "Duplicar",
+                        key=f"duplicar_{i}",
+                        width="stretch"
+                    ):
+
+                        # Limpiar widgets exactamente igual que Editar
+                        for key in [
+                            "capacidad",
+                            "altura",
+                            "configuracion",
+                            "acometida",
+                            "entrada_cables",
+                            "montaje",
+                            "operacion",
+                            "marco",
+                            "tipo",
+                            "marco_derivado",
+                            "marco_derivado_600",
+                            "marco_derivado_800",
+                            "marco_derivado_1200",
+                            "tipo_derivado",
+                            "tipo_derivado_600",
+                            "tipo_derivado_800",
+                            "tipo_derivado_1200",
+                            "medidor_seleccionado",
+                            "transitorio_seleccionado"
+                        ]:
+                            st.session_state.pop(key, None)
+
+                        nueva_orden = {
+                            k: (
+                                v.copy()
+                                if isinstance(v, pd.DataFrame)
+                                else v
+                            )
+                            for k, v in orden.items()
+                        }
+
+                        # Vaciar derivados para crear la nueva variante
+                        nueva_orden["breakers"] = pd.DataFrame()
+                        nueva_orden["tapas"] = pd.DataFrame()
+                        nueva_orden["interruptores"] = pd.DataFrame()
+
+                        st.session_state.interruptor_principal = (
+                            orden.get(
+                                "interruptor_principal",
+                                pd.DataFrame()
+                            ).copy()
+                        )
+
+                        st.session_state.carrito_breakers = pd.DataFrame()
+
+                        st.session_state.carrito_tapas = pd.DataFrame()
+
+                        st.session_state.selecciones_conectores = {}
+
+                        st.session_state.orden_editando = nueva_orden
+
+                        st.session_state.orden_guardada_actual = None
+
+                        st.session_state.orden_editando_indice = None
 
                         st.rerun()
 
@@ -2909,7 +2991,7 @@ with col2:
             espacio_tapas = calcular_x_tapas(orden_tapas)
 
         if not orden_breakers.empty:
-        
+
             st.divider()
 
             st.subheader(
@@ -2993,7 +3075,7 @@ with col2:
                     f"{breaker['# Polos']}P | "
                     f"x{breaker['size']}"
                 )
-                
+
                 opciones = (
                     kits_conector["Ubicacion"]
                     .dropna()
@@ -3175,7 +3257,7 @@ with col2:
             )
 
         if not orden_tapas.empty:
-        
+
             st.divider()
 
             st.subheader(
@@ -3238,7 +3320,7 @@ with col2:
                 .fillna(0)
                 .sum()
             )
-            
+
         if not orden_tapas.empty:
 
             total += (
@@ -3291,7 +3373,12 @@ with col2:
                 "entrada_cables": entrada_cables,
                 "incluir_medicion": incluir_medicion,
                 "medidor_seleccionado": medidor_seleccionado,
-                "transitorio_seleccionado": transitorio_seleccionado,
+                # CAMBIO 6: Guardar None en caso de seleccionar "__NO_TRANSITORIO__"
+                "transitorio_seleccionado": (
+                    None
+                    if transitorio_seleccionado == "__NO_TRANSITORIO__"
+                    else transitorio_seleccionado
+                ),
                 "incluir_bus": incluir_bus,
                 "incluir_sensor": incluir_sensor,
                 "operacion": operacion,
